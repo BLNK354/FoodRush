@@ -1,0 +1,21 @@
+{
+  "name": "FoodRush — LPU campus food ordering",
+  "short_name": "FoodRush",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF8F0",
+  "theme_color": "#E23744",
+  "description": "Order ahead from LPU campus stalls. Skip the line, pick up at the stall.",
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

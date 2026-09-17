@@ -1,0 +1,38 @@
+name: foodrush
+description: FoodRush — campus food pre-ordering for LPU. Skip the line, pick up at the stall.
+publish_to: 'none'
+version: 2.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Backend
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Routing
+  go_router: ^14.6.0
+
+  # Utilities
+  file_picker: ^8.1.0
+  uuid: ^4.5.0
+
+  # UI
+  cupertino_icons: ^1.0.8
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
+  image: ^4.10.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

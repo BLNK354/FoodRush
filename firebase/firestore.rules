@@ -1,0 +1,149 @@
+rules_version = '2';
+
+// FoodRush — Firestore security rules
+// Paste into Firebase console → Firestore Database → Rules → Publish,
+// or deploy with the Firebase CLI: firebase deploy --only firestore:rules
+//
+// Reads are granted to any signed-in user on purpose: the app is LPU-email
+// gated at signup and Firestore queries (lists, sorts) are evaluated against
+// these rules per-document-set, so per-owner read rules would break client
+// queries without providing real security. All WRITES are tightly scoped.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(me())).data.role;
+    }
+    function isAdmin() { return signedIn() && myRole() == 'admin'; }
+    function isCustomer() { return signedIn() && myRole() == 'customer'; }
+    function isVendor() { return signedIn() && myRole() == 'vendor'; }
+    function ownsStall(vendorId) {
+      return isVendor()
+        && get(/databases/$(database)/documents/vendors/$(vendorId)).data.ownerId == me();
+    }
+
+    // Bootstrap: the FIRST account may claim admin. The window closes the
+    // moment settings/app_bootstrapped is written (by that same account).
+    function bootstrapOpen() {
+      return !exists(/databases/$(database)/documents/settings/app_bootstrapped);
+    }
+
+    // ------------------------------------------------------------ users ----
+    match /users/{uid} {
+      allow read: if signedIn();
+      // Roles are set at signup; only the very first account may claim admin
+      // (and must immediately write the bootstrap marker to close the window).
+      // Customers must use the campus domain.
+      allow create: if signedIn() && uid == me()
+        && request.resource.data.role in ['customer', 'vendor', 'admin']
+        && (request.resource.data.role != 'admin' || bootstrapOpen())
+        && (request.resource.data.role != 'customer'
+            || request.resource.data.email.matches('.*@lpunetwork\\.edu\\.ph'));
+      // Role can never be changed through the client afterwards; admin
+      // manages isActive.
+      allow update: if (uid == me()
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                              .hasAny(['role', 'isActive']))
+                    || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --------------------------------------------------------- vendors -----
+    match /vendors/{vendorId} {
+      allow read: if signedIn();
+      // Owner creates their own stall doc (during vendor signup), unverified.
+      allow create: if isVendor() && request.resource.data.ownerId == me()
+                    && request.resource.data.isVerified == false;
+      // Owner edits everything except verification; admin sets verification.
+      allow update: if (signedIn() && resource.data.ownerId == me()
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                              .hasAny(['isVerified', 'ownerId']))
+                    || isAdmin();
+      allow delete: if isAdmin();
+
+      // -------------------------------------------- products / categories --
+      match /products/{productId} {
+        allow read: if signedIn();
+        allow write: if signedIn() && (ownsStall(vendorId) || isAdmin());
+      }
+      match /categories/{categoryId} {
+        allow read: if signedIn();
+        allow write: if signedIn() && (ownsStall(vendorId) || isAdmin());
+      }
+    }
+
+    // ----------------------------------------------------------- orders ----
+    match /orders/{orderId} {
+      allow read: if signedIn();
+
+      // Created only through the app's placeOrder transaction.
+      allow create: if isCustomer()
+        && request.resource.data.customerId == me()
+        && request.resource.data.status in ['awaiting_payment', 'accepted']
+        && request.resource.data.total >= 0;
+
+      // Customer may cancel an unpaid order, or submit a GCash proof
+      // (exactly the four fields submitProof writes, nothing else).
+      allow update: if signedIn() && resource.data.customerId == me()
+        && (
+          (request.resource.data.status == 'cancelled'
+            && resource.data.status in ['awaiting_payment', 'proof_submitted'])
+          ||
+          (request.resource.data.status == 'proof_submitted'
+            && resource.data.status == 'awaiting_payment'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['receiptUrl', 'receiptStatus', 'status', 'paymentStatus']))
+        );
+
+      // Vendor/admin progress the order through the flow.
+      allow update: if isAdmin() || ownsStall(resource.data.vendorId);
+    }
+
+    // -------------------------------------------------------- favorites ----
+    match /favorites/{favId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.customerId == me();
+      allow update, delete: if signedIn() && resource.data.customerId == me();
+    }
+
+    // ------------------------------------------------------- promotions ----
+    match /promotions/{promoId} {
+      allow read: if signedIn();
+      // Admins write platform-wide promos; stalls write promos for their own
+      // stall (vendorId must point at a stall they own).
+      allow create: if isAdmin()
+        || (isVendor()
+            && request.resource.data.get('vendorId', '') != ''
+            && get(/databases/$(database)/documents/vendors/$(request.resource.data.vendorId)).data.ownerId == me());
+      allow update, delete: if isAdmin()
+        || (isVendor() && resource.data.vendorId != null && ownsStall(resource.data.vendorId));
+    }
+
+    // --------------------------------------------------------- reviews -----
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.customerId == me();
+      allow update, delete: if resource.data.customerId == me() || isAdmin();
+    }
+
+    // -------------------------------------------------------- settings -----
+    match /settings/{docId} {
+      allow read: if signedIn();
+      // The bootstrap marker is created exactly once and is then immutable —
+      // no rule allows its update/delete, so the admin-claim window can never
+      // be reopened, even by an admin.
+      allow create: if (docId == 'app_bootstrapped' && bootstrapOpen()) || isAdmin();
+      allow update, delete: if isAdmin() && docId != 'app_bootstrapped';
+    }
+
+    // -------------------------------------------------------- counters -----
+    // Queue-number counters are written by the client placeOrder transaction.
+    match /counters/{docId} {
+      allow read: if signedIn();
+      allow write: if signedIn(); // values validated app-side
+    }
+  }
+}

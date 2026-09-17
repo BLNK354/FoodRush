@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// FoodRush — Firebase Storage rules
+// Paste into Firebase console → Storage → Rules → Publish,
+// or deploy with the Firebase CLI: firebase deploy --only storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+
+    // Uploads go to <prefix>/<uid>/<file>; the uid folder must be your own.
+    function ownFolder(prefix) {
+      return signedIn()
+        && request.resource.name.matches('^' + prefix + '/[^/]+/[^/]+$')
+        && request.resource.name.split('/')[1] == request.auth.uid;
+    }
+
+    // Public menu media — world-readable, owner-writable.
+    match /product-images/{allPaths=**} {
+      allow read: if true;
+      allow write: if ownFolder('product-images');
+    }
+    match /vendor-logos/{allPaths=**} {
+      allow read: if true;
+      allow write: if ownFolder('vendor-logos');
+    }
+
+    // GCash receipts — anyone signed in can read (vendor + admin verify);
+    // customers write only inside their own folder.
+    match /payment-proofs/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if ownFolder('payment-proofs');
+    }
+  }
+}
