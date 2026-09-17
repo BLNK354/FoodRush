@@ -131,7 +131,10 @@ service cloud.firestore {
 
     // -------------------------------------------------------- settings -----
     match /settings/{docId} {
-      allow read: if signedIn();
+      // The bootstrap marker is world-readable (it contains only a timestamp)
+      // so the register screen can tell signed-out visitors whether the
+      // first-account-admin window is still open.
+      allow read: if docId == 'app_bootstrapped' || signedIn();
       // The bootstrap marker is created exactly once and is then immutable —
       // no rule allows its update/delete, so the admin-claim window can never
       // be reopened, even by an admin.

@@ -126,13 +126,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ],
                     )
-                  : SingleChildScrollView(child: form),
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 24),
+                          _compactBrand(),
+                          const SizedBox(height: 24),
+                          form,
+                        ],
+                      ),
+                    ),
             ),
           ),
         ),
       ),
     );
   }
+
+  Widget _compactBrand() => Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: FrColors.primary,
+              borderRadius: BorderRadius.circular(FrRadius.lg),
+            ),
+            child: const Icon(Icons.lunch_dining, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 10),
+          const Text('FoodRush',
+              style: TextStyle(
+                  fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
+          Text('for $kUniversityName — order ahead, skip the line',
+              style: const TextStyle(fontSize: 13, color: FrColors.muted)),
+        ],
+      );
 
   Widget _brandPanel() => Column(
         mainAxisSize: MainAxisSize.min,

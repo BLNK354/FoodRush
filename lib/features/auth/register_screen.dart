@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -102,6 +103,49 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     .headlineMedium
                     ?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 20),
+
+            // Bootstrap notice: if no admin exists yet, say so LOUDLY before
+            // the account is created — the first signup claims that role.
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: FirebaseFirestore.instance
+                  .collection(kColSettings)
+                  .doc('app_bootstrapped')
+                  .get(),
+              builder: (context, snap) {
+                if (snap.hasData && snap.data!.exists) {
+                  return const SizedBox.shrink();
+                }
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: FrColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(FrRadius.md),
+                    border: Border.all(color: FrColors.warning, width: 1.2),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.admin_panel_settings,
+                          color: FrColors.warning, size: 26),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'No admin exists yet — the FIRST account created '
+                          'becomes the platform ADMIN (full control over '
+                          'stalls, users, and orders).\n\nIf you are setting '
+                          'up FoodRush, this should be you. If not, stop and '
+                          'ask the administrator to register first.',
+                          style: const TextStyle(
+                              fontSize: 12.5, height: 1.45,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             // Role picker
             SegmentedButton<String>(
@@ -271,10 +315,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             constraints: const BoxConstraints(maxWidth: 640),
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: form,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    _compactBrand(),
+                    const SizedBox(height: 20),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: form,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -283,4 +336,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
     );
   }
+
+  Widget _compactBrand() => Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: FrColors.primary,
+              borderRadius: BorderRadius.circular(FrRadius.lg),
+            ),
+            child: const Icon(Icons.lunch_dining, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 10),
+          const Text('FoodRush',
+              style: TextStyle(
+                  fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
+          Text('for $kUniversityName — order ahead, skip the line',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: FrColors.muted)),
+        ],
+      );
 }
