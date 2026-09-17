@@ -29,6 +29,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String _role = kRoleCustomer;
   bool _busy = false;
   bool _agreed = false;
+  bool _bootstrapOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBootstrap();
+  }
+
+  /// The Admin tab exists only while no admin account exists — it disappears
+  /// the moment the first signup completes.
+  Future<void> _checkBootstrap() async {
+    final marker = await FirebaseFirestore.instance
+        .collection(kColSettings)
+        .doc('app_bootstrapped')
+        .get();
+    if (!mounted) return;
+    setState(() {
+      _bootstrapOpen = !marker.exists;
+      if (!_bootstrapOpen && _role == kRoleAdmin) _role = kRoleCustomer;
+    });
+  }
 
   @override
   void dispose() {
@@ -45,6 +66,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreed) {
       showSnack(context, 'Please agree to the ground rules to continue.',
+          error: true);
+      return;
+    }
+    if (_role == kRoleAdmin && !_bootstrapOpen) {
+      showSnack(context, 'An admin already exists — register as a student or stall owner.',
           error: true);
       return;
     }
@@ -104,57 +130,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 20),
 
-            // Bootstrap notice: if no admin exists yet, say so LOUDLY before
-            // the account is created — the first signup claims that role.
-            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              future: FirebaseFirestore.instance
-                  .collection(kColSettings)
-                  .doc('app_bootstrapped')
-                  .get(),
-              builder: (context, snap) {
-                if (snap.hasData && snap.data!.exists) {
-                  return const SizedBox.shrink();
-                }
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 20),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: FrColors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(FrRadius.md),
-                    border: Border.all(color: FrColors.warning, width: 1.2),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.admin_panel_settings,
-                          color: FrColors.warning, size: 26),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'No admin exists yet — the FIRST account created '
-                          'becomes the platform ADMIN (full control over '
-                          'stalls, users, and orders).\n\nIf you are setting '
-                          'up FoodRush, this should be you. If not, stop and '
-                          'ask the administrator to register first.',
-                          style: const TextStyle(
-                              fontSize: 12.5, height: 1.45,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            // Role picker
+            // Role picker — the Admin segment only exists while the
+            // first-account-admin window is open.
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
+              segments: [
+                const ButtonSegment(
                     value: kRoleCustomer,
                     icon: Icon(Icons.person_outline),
                     label: Text('Student')),
-                ButtonSegment(
+                if (_bootstrapOpen)
+                  const ButtonSegment(
+                      value: kRoleAdmin,
+                      icon: Icon(Icons.admin_panel_settings_outlined),
+                      label: Text('Admin')),
+                const ButtonSegment(
                     value: kRoleVendor,
                     icon: Icon(Icons.storefront_outlined),
                     label: Text('Stall owner')),
@@ -162,6 +151,39 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               selected: {_role},
               onSelectionChanged: (s) => setState(() => _role = s.first),
             ),
+
+            // Admin explainer: shown only when the Admin tab is selected.
+            if (_role == kRoleAdmin) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: FrColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(FrRadius.md),
+                  border: Border.all(color: FrColors.warning, width: 1.2),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.admin_panel_settings,
+                        color: FrColors.warning, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You are creating the PLATFORM ADMIN — the account '
+                        'that verifies stalls, manages users, and oversees '
+                        'every order. This tab disappears once an admin '
+                        'exists, so this should only be for the person '
+                        'setting up FoodRush.',
+                        style: const TextStyle(
+                            fontSize: 12.5, height: 1.45,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
 
             FrTextField(
