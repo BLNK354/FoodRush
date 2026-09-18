@@ -29,17 +29,16 @@ class AuthController extends Notifier<AuthData> {
       if (user == null) {
         state = const AuthData();
       } else {
+        state = const AuthData(loading: true);
         _loadProfile();
       }
     });
     ref.onDispose(() => _sub?.cancel());
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      Future.microtask(_loadProfile);
-      return const AuthData(loading: true);
-    }
-    return const AuthData();
+    // Stay loading until the FIRST authStateChanges event resolves — on web,
+    // Firebase restores the session asynchronously, and reporting "signed out"
+    // too early made the router rewrite deep links to /login.
+    return const AuthData(loading: true);
   }
 
   Future<void> _loadProfile() async {

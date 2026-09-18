@@ -163,13 +163,78 @@ class StaffShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = GoRouterState.of(context).matchedLocation;
-    final extended = !FrBreakpoints.isCompact(MediaQuery.sizeOf(context).width);
+    final wide = !FrBreakpoints.isCompact(MediaQuery.sizeOf(context).width);
+
+    // Phones: full-width content with a drawer — a desktop rail would eat
+    // ~80px of a 390px screen and force mid-word wrapping everywhere.
+    if (!wide) {
+      final current = dests[_index(loc)].label;
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(current),
+          actions: [
+            IconButton(
+              tooltip: 'Sign out',
+              icon: const Icon(Icons.logout),
+              onPressed: () =>
+                  ref.read(authControllerProvider.notifier).signOut(),
+            ),
+          ],
+        ),
+        drawer: Drawer(
+          child: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: FrColors.primary,
+                        child: Text(title,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800)),
+                      ),
+                      const SizedBox(width: 12),
+                      Text('FoodRush $title',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 16)),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                for (var i = 0; i < dests.length; i++)
+                  ListTile(
+                    leading: Icon(dests[i].icon),
+                    title: Text(dests[i].label),
+                    selected: _index(loc) == i,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.go(dests[i].path);
+                    },
+                  ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('Sign out'),
+                  onTap: () =>
+                      ref.read(authControllerProvider.notifier).signOut(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        body: child,
+      );
+    }
 
     return Scaffold(
       body: Row(
         children: [
           NavigationRail(
-            extended: extended,
+            extended: true,
             selectedIndex: _index(loc),
             onDestinationSelected: (i) => context.go(dests[i].path),
             leading: Padding(
@@ -177,7 +242,7 @@ class StaffShell extends ConsumerWidget {
               child: CircleAvatar(
                 backgroundColor: FrColors.primary,
                 child: Text(
-                  title[0],
+                  title,
                   style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w800),
                 ),

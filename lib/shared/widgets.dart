@@ -60,7 +60,13 @@ class FrPage extends StatelessWidget {
         Expanded(
           child: SingleChildScrollView(
             padding: padding,
-            child: Center(
+            // Align(topCenter) + ConstrainedBox instead of Center: shrink-wrap
+            // centering under an unbounded scroll viewport has been observed to
+            // trip 'RenderBox was not laid out' asserts in web debug builds
+            // when data lands mid-frame, and top-aligning is the correct
+            // behavior for short pages anyway.
+            child: Align(
+              alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1100),
                 child: Column(
@@ -99,33 +105,39 @@ class StatCard extends StatelessWidget {
     final c = color ?? FrColors.primary;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        // Column, not Row: at phone widths a Row squeezes the text column so
+        // hard that words break mid-letter ("Custo mers").
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: c.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(FrRadius.md),
-              ),
-              child: Icon(icon, color: c),
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(FrRadius.md),
+                  ),
+                  child: Icon(icon, color: c, size: 22),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: FrColors.muted, fontSize: 12.5),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: const TextStyle(
-                          color: FrColors.muted, fontSize: 12.5)),
-                  const SizedBox(height: 2),
-                  Text(value,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w800)),
-                ],
-              ),
-            ),
+            const SizedBox(height: 8),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w800)),
           ],
         ),
       ),

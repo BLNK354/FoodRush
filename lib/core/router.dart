@@ -25,11 +25,16 @@ import '../core/constants.dart';
 import '../shared/shells.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authControllerProvider);
-
-  return GoRouter(
-    initialLocation: '/',
+  // Build the router ONCE. Watching authControllerProvider here rebuilt the
+  // whole GoRouter on every auth emission (including the transient loading
+  // state), whose redirect rewrote deep links to the role home. Instead the
+  // redirect reads the CURRENT auth state, and auth changes trigger
+  // router.refresh() below.
+  final router = GoRouter(
+    // No initialLocation override: go_router derives it from the URL so
+    // deep links (/#/admin/users etc.) survive refreshes and cold starts.
     redirect: (context, state) {
+      final auth = ref.read(authControllerProvider);
       final loggedIn = auth.isAuthenticated;
       final role = auth.role;
       final loc = state.matchedLocation;
@@ -44,6 +49,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           _ => '/shop',
         };
       }
+      // Role guards: keep each area reachable only by its role.
+      final home = switch (role) {
+        kRoleAdmin => '/admin',
+        kRoleVendor => '/vendor',
+        _ => '/shop',
+      };
+      if (loggedIn && loc.startsWith('/admin') && role != kRoleAdmin) return home;
+      if (loggedIn && loc.startsWith('/vendor') && role != kRoleVendor) return home;
       return null;
     },
     routes: [
@@ -148,6 +161,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  // Re-run the redirect when auth state meaningfully changes (sign-in/out,
+  // role change) without rebuilding the router instance. Only transitions
+  // that can change the redirect outcome trigger a refresh — identity-token
+  // refreshes and profile re-fetches with the same role do not. Always
+  // deferred to after the frame: a synchronous refresh during layout
+  // corrupts the render tree (RenderBox-was-not-laid-out asserts).
+  ref.listen(authControllerProvider, (prev, next) {
+    final changed = prev == null ||
+        prev.loading != next.loading ||
+        prev.isAuthenticated != next.isAuthenticated ||
+        prev.role != next.role;
+    if (!changed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => router.refresh());
+  });
+  return router;
 });
 
 /// Decides the first screen while auth state resolves.
