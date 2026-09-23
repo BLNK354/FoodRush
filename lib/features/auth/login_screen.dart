@@ -40,9 +40,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Router redirect handles navigation on success.
   }
 
+  Future<void> _forgotPassword() async {
+    final address = await showDialog<String>(
+      context: context,
+      builder: (_) => _ResetPasswordDialog(initialEmail: _email.text.trim()),
+    );
+    if (address == null || !mounted) return;
+    final err = await ref
+        .read(authControllerProvider.notifier)
+        .sendPasswordReset(address);
+    if (!mounted) return;
+    showSnack(
+      context,
+      err ?? 'If an account exists for $address, a reset link is on its way.',
+      error: err != null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = !FrBreakpoints.isCompact(MediaQuery.sizeOf(context).width);
+    final notice = ref.watch(authControllerProvider.select((a) => a.notice));
 
     final form = Form(
       key: _formKey,
@@ -61,6 +79,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const Text('Sign in to skip the line at your favorite stalls.',
               style: TextStyle(color: FrColors.muted)),
           const SizedBox(height: 24),
+          if (notice != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: FrColors.danger.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(FrRadius.md),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.block, color: FrColors.danger, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(notice,
+                        style: const TextStyle(
+                            color: FrColors.danger,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           FrTextField(
             controller: _email,
             label: 'Email',
@@ -76,7 +116,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             validator: (v) =>
                 v == null || v.isEmpty ? 'Password is required' : null,
           ),
-          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _busy ? null : _forgotPassword,
+              child: const Text('Forgot password?'),
+            ),
+          ),
+          const SizedBox(height: 12),
           FilledButton(
             onPressed: _busy ? null : _submit,
             child: _busy
@@ -199,4 +246,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       );
+}
+
+/// Asks for the email to send a reset link to; pops with it (or null).
+class _ResetPasswordDialog extends StatefulWidget {
+  final String initialEmail;
+  const _ResetPasswordDialog({required this.initialEmail});
+
+  @override
+  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+  late final _email = TextEditingController(text: widget.initialEmail);
+
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Reset your password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text("We'll email you a link to set a new password.",
+              style: TextStyle(color: FrColors.muted)),
+          const SizedBox(height: 16),
+          FrTextField(
+            controller: _email,
+            label: 'Email',
+            keyboardType: TextInputType.emailAddress,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _email.text.trim()),
+          child: const Text('Send link'),
+        ),
+      ],
+    );
+  }
 }

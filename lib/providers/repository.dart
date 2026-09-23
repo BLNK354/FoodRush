@@ -68,8 +68,46 @@ class Repository {
     return list;
   }
 
-  Future<void> setUserActive(String userId, bool active) async {
-    await _db.collection(kColUsers).doc(userId).update({'isActive': active});
+  /// Admin edit of any user. When [stallName] is given and the user owns no
+  /// stall yet (e.g. just turned into a stall owner), an unverified stall is
+  /// created for them — verify it under Stalls.
+  Future<void> adminUpdateUser(
+    String userId, {
+    required String fullName,
+    String? phone,
+    String? studentNumber,
+    required String role,
+    required bool isActive,
+    String? stallName,
+  }) async {
+    String? orNull(String? v) =>
+        v == null || v.trim().isEmpty ? null : v.trim();
+    await _db.collection(kColUsers).doc(userId).update({
+      'fullName': fullName.trim(),
+      'phone': orNull(phone),
+      'studentNumber': orNull(studentNumber),
+      'role': role,
+      'isActive': isActive,
+    });
+    final name = orNull(stallName);
+    if (role == kRoleVendor && name != null && !await userOwnsStall(userId)) {
+      await _db.collection(kColVendors).add({
+        'ownerId': userId,
+        'name': name,
+        'isVerified': false,
+        'isOpen': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  Future<bool> userOwnsStall(String userId) async {
+    final snap = await _db
+        .collection(kColVendors)
+        .where('ownerId', isEqualTo: userId)
+        .limit(1)
+        .get();
+    return snap.docs.isNotEmpty;
   }
 
   // =========================================================================
@@ -113,6 +151,8 @@ class Repository {
     String? gcashName,
     String? pickupPoint,
     bool? isOpen,
+    String? logoUrl, // new logo (data URL); null keeps the current one
+    bool removeLogo = false,
   }) async {
     await _db.collection(kColVendors).doc(vendorId).update({
       'name': name,
@@ -121,6 +161,8 @@ class Repository {
       'gcashName': gcashName,
       'pickupPoint': pickupPoint,
       if (isOpen != null) 'isOpen': isOpen,
+      if (logoUrl != null) 'logoUrl': logoUrl,
+      if (removeLogo && logoUrl == null) 'logoUrl': FieldValue.delete(),
     });
   }
 

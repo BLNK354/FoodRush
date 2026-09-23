@@ -332,6 +332,11 @@ class _OrderCard extends ConsumerWidget {
                 StatusChip.order(order.status),
               ],
             ),
+            if (order.isActive) ...[
+              const SizedBox(height: 12),
+              OrderProgressBar(
+                  status: order.status, paymentMethod: order.paymentMethod),
+            ],
             const Divider(height: 24),
             ...order.items.map(
               (it) => Padding(
