@@ -27,3 +27,4 @@ Thumbs.db
 
 # Rules-test dependencies
 node_modules/
+firebase/tests/*-debug.log

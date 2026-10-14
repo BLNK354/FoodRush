@@ -161,7 +161,7 @@ describe('reviews', () => {
   describe('replies', () => {
     beforeEach(() => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'reviews/done1'), review('done1'))));
     test('the stall replies', () => assertSucceeds(updateDoc(doc(owner(), 'reviews/done1'), { reply: 'Salamat!' })));
-    test('...but cannot change the stars', () => assertFails(updateDoc(doc(owner(), 'reviews/done1'), { rating: 5, reply: 'x' })));
+    test('...but cannot change the stars', () => assertFails(updateDoc(doc(owner(), 'reviews/done1'), { rating: 1, reply: 'x' })));
     test('another stall cannot reply', () => assertFails(updateDoc(doc(otherOwner(), 'reviews/done1'), { reply: 'x' })));
   });
 });
