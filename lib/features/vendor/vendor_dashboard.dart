@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../../models/order.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
+import '../../shared/order_alerts.dart';
 import '../../shared/widgets.dart';
 
 class VendorDashboard extends ConsumerStatefulWidget {
@@ -170,6 +171,9 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
             ),
           ),
 
+        _statusCard(v),
+        const SizedBox(height: 16),
+
         LayoutBuilder(builder: (context, c) {
           final twoCol = c.maxWidth > 720;
           final cards = [
@@ -233,6 +237,48 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
               ),
         const SizedBox(height: 40),
       ],
+    );
+  }
+
+  /// What students see right now, plus rating and alert opt-in.
+  Widget _statusCard(Vendor v) {
+    final now = DateTime.now();
+    final openNow = v.isOpenNow;
+    final hours = v.hoursLabel(now);
+    final String headline;
+    if (openNow) {
+      headline = 'Students can order now${hours == null ? '' : ' · $hours'}';
+    } else if (v.isOpen) {
+      headline = 'Outside your opening hours'
+          '${hours == null ? '' : ' · $hours'}';
+    } else {
+      headline = 'Closed: switch on to take orders';
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          spacing: 16,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(openNow ? Icons.storefront : Icons.schedule,
+                    color: openNow ? FrColors.success : FrColors.muted),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(headline,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+            RatingBadge(rating: v.rating, count: v.ratingCount, size: 14),
+            const EnableAlertsButton(label: 'Alert me about new orders'),
+          ],
+        ),
+      ),
     );
   }
 

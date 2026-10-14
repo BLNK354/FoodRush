@@ -59,7 +59,7 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
         else ...[
           if (pending.isNotEmpty) ...[
             SectionHeader('Pending approval (${pending.length})'),
-            ...pending.map(_pendingTile),
+            ...pending.map(_stallCard),
             const SizedBox(height: 20),
           ],
           SectionHeader('Approved (${approved.length})'),
@@ -69,55 +69,112 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
               title: 'No approved stalls yet',
             )
           else
-            ...approved.map(_approvedTile),
+            ...approved.map(_stallCard),
         ],
         const SizedBox(height: 40),
       ],
     );
   }
 
-  Widget _pendingTile(VendorWithOwner v) {
+  /// One card per stall. Actions sit on their own row (not ListTile.trailing)
+  /// so they wrap instead of overflowing on phones.
+  Widget _stallCard(VendorWithOwner v) {
+    final owner = v.ownerName.isEmpty ? v.ownerEmail : v.ownerName;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: const Icon(Icons.pending_actions, color: FrColors.warning),
-        title: Text(v.name,
-            style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text('Owner: ${v.ownerName.isEmpty ? v.ownerEmail : v.ownerName} · ${v.ownerEmail}'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OutlinedButton(
-              onPressed: () => _setVerified(v, true),
-              child: const Text('Verify'),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: FrColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(FrRadius.md),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: v.logoUrl != null
+                      ? FrImage(v.logoUrl)
+                      : Icon(
+                          v.isVerified
+                              ? Icons.storefront
+                              : Icons.pending_actions,
+                          color: v.isVerified
+                              ? FrColors.primary
+                              : FrColors.warning),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(v.name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 15)),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Owner: $owner'
+                        '${owner == v.ownerEmail ? '' : ' · ${v.ownerEmail}'}',
+                        style: const TextStyle(
+                            color: FrColors.muted, fontSize: 12.5),
+                      ),
+                      if (v.pickupPoint != null)
+                        Text('Pickup: ${v.pickupPoint}',
+                            style: const TextStyle(
+                                color: FrColors.muted, fontSize: 12.5)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          v.isVerified
+                              ? const StatusChip('Verified',
+                                  color: FrColors.success)
+                              : const StatusChip('Pending',
+                                  color: FrColors.warning),
+                          v.isOpenNow
+                              ? const StatusChip('Open now',
+                                  color: FrColors.success)
+                              : const StatusChip('Closed',
+                                  color: FrColors.muted),
+                          RatingBadge(rating: v.rating, count: v.ratingCount),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Delete stall',
-              icon: const Icon(Icons.delete_outline, color: FrColors.danger),
-              onPressed: () => _delete(v),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _approvedTile(VendorWithOwner v) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: const Icon(Icons.storefront, color: FrColors.success),
-        title: Text(v.name,
-            style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text('Owner: ${v.ownerEmail}${v.pickupPoint != null ? ' · ${v.pickupPoint}' : ''}'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextButton(
-              onPressed: () => _setVerified(v, false),
-              child: const Text('Revoke',
-                  style: TextStyle(color: FrColors.danger)),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              children: [
+                if (v.isVerified)
+                  TextButton(
+                    onPressed: () => _setVerified(v, false),
+                    child: const Text('Revoke',
+                        style: TextStyle(color: FrColors.danger)),
+                  )
+                else
+                  FilledButton(
+                    onPressed: () => _setVerified(v, true),
+                    child: const Text('Verify'),
+                  ),
+                TextButton.icon(
+                  onPressed: () => _delete(v),
+                  icon: const Icon(Icons.delete_outline,
+                      color: FrColors.danger),
+                  label: const Text('Delete',
+                      style: TextStyle(color: FrColors.danger)),
+                ),
+              ],
             ),
           ],
         ),
@@ -141,7 +198,8 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
     final ok = await confirmDialog(
       context,
       title: 'Delete ${v.name}?',
-      message: 'This removes the stall, its products and menu. The owner account stays.',
+      message: 'This permanently removes the stall with all its products and '
+          'categories. Past orders and the owner account stay.',
       confirmLabel: 'Delete',
       destructive: true,
     );

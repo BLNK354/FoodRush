@@ -20,9 +20,11 @@ import '../features/vendor/vendor_dashboard.dart';
 import '../features/vendor/vendor_menu_screen.dart';
 import '../features/vendor/vendor_orders_screen.dart';
 import '../features/vendor/vendor_promotions_screen.dart';
+import '../features/vendor/vendor_reports_screen.dart';
 import '../features/vendor/vendor_settings_screen.dart';
 import '../providers/auth_controller.dart';
 import '../core/constants.dart';
+import '../shared/order_alerts.dart';
 import '../shared/shells.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -85,7 +87,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ---------------- customer ----------------
       ShellRoute(
-        builder: (context, state, child) => CustomerShell(child: child),
+        // OrderAlerts sits inside the shell so it lives as long as the
+        // signed-in area does (ShellRoute keeps its State across pages).
+        builder: (context, state, child) =>
+            CustomerShell(child: OrderAlerts.customer(child: child)),
         routes: [
           GoRoute(
             path: '/shop',
@@ -118,7 +123,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ---------------- vendor ----------------
       ShellRoute(
-        builder: (context, state, child) => VendorShell(child: child),
+        builder: (context, state, child) =>
+            VendorShell(child: OrderAlerts.vendor(child: child)),
         routes: [
           GoRoute(
             path: '/vendor',
@@ -135,6 +141,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/vendor/promotions',
             builder: (context, state) => const VendorPromotionsScreen(),
+          ),
+          GoRoute(
+            path: '/vendor/reports',
+            builder: (context, state) => const VendorReportsScreen(),
           ),
           GoRoute(
             path: '/vendor/settings',

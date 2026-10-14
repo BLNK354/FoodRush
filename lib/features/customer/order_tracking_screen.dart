@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../models/misc.dart';
 import '../../models/order.dart';
 import '../../providers/repository.dart';
+import '../../shared/order_alerts.dart';
 import '../../shared/widgets.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
@@ -179,6 +181,16 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                           Text(_subline(o),
                               style: const TextStyle(
                                   color: FrColors.muted, fontSize: 13)),
+                          if (o.isActive) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              o.pickupAt == null
+                                  ? 'Pickup: as soon as it\'s ready'
+                                  : 'Pickup: ${fmtClock(o.pickupAt!)}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -186,11 +198,24 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 ),
                 const Divider(height: 32),
                 _Timeline(order: o),
+                if (o.isActive && o.status != kOrderReady) ...[
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: EnableAlertsButton(
+                        label: 'Notify me when it\'s ready'),
+                  ),
+                ],
               ],
             ),
           ),
         ),
         const SizedBox(height: 20),
+
+        if (o.status == kOrderCompleted) ...[
+          _ReviewCard(order: o),
+          const SizedBox(height: 20),
+        ],
 
         // Items + payment summary
         Card(
@@ -476,6 +501,112 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
 // ---------------------------------------------------------------------------
 // Status timeline
 // ---------------------------------------------------------------------------
+
+/// After pickup: rate the stall once (reviews are final).
+class _ReviewCard extends StatefulWidget {
+  final Order order;
+  const _ReviewCard({required this.order});
+
+  @override
+  State<_ReviewCard> createState() => _ReviewCardState();
+}
+
+class _ReviewCardState extends State<_ReviewCard> {
+  final _comment = TextEditingController();
+  Review? _existing;
+  bool _loading = true;
+  bool _saving = false;
+  int _rating = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    Repository.instance.getReview(widget.order.id).then((r) {
+      if (!mounted) return;
+      setState(() {
+        _existing = r;
+        _loading = false;
+      });
+    }, onError: (Object _) {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _saving = true);
+    try {
+      await Repository.instance.submitReview(
+        order: widget.order,
+        rating: _rating,
+        comment: _comment.text,
+      );
+      final saved = await Repository.instance.getReview(widget.order.id);
+      if (!mounted) return;
+      setState(() => _existing = saved);
+      showSnack(context, 'Thanks for rating ${widget.order.vendorName ?? 'the stall'}!');
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not save review: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox.shrink();
+    final r = _existing;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              r == null
+                  ? 'How was ${widget.order.vendorName ?? 'your order'}?'
+                  : 'Your rating',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StarPicker(
+                value: r?.rating ?? _rating,
+                onChanged: r != null || _saving
+                    ? null
+                    : (v) => setState(() => _rating = v),
+              ),
+            ),
+            if (r != null) ...[
+              if (r.comment != null) ...[
+                const SizedBox(height: 4),
+                Text(r.comment!),
+              ],
+            ] else ...[
+              const SizedBox(height: 8),
+              FrTextField(
+                controller: _comment,
+                label: 'Comment (optional)',
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _rating == 0 || _saving ? null : _submit,
+                child: Text(_saving ? 'Saving…' : 'Submit review'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _Timeline extends StatelessWidget {
   final Order order;

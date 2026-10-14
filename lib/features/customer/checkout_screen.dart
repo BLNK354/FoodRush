@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../models/user.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/repository.dart';
 import '../../shared/widgets.dart';
@@ -24,6 +25,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _placing = false;
   String? _vendorName;
   String? _pickupPoint;
+  Vendor? _vendor;
+  int? _ordersAhead;
+
+  /// Requested pickup time; null = ASAP.
+  DateTime? _pickupAt;
 
   @override
   void dispose() {
@@ -45,10 +51,34 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final v = await Repository.instance.getVendor(vendorId);
       if (!mounted || v == null) return;
       setState(() {
+        _vendor = v;
         _vendorName = v.name;
         _pickupPoint = v.pickupPoint;
       });
+      final ahead = await Repository.instance.ordersAhead(vendorId);
+      if (mounted) setState(() => _ordersAhead = ahead);
     } catch (_) {}
+  }
+
+  /// 15-minute pickup slots from the earliest realistic time until the stall
+  /// closes today (or 4 hours out when it has no schedule).
+  List<DateTime> _slots(Vendor v) {
+    final now = DateTime.now();
+    final wait = (( _ordersAhead ?? 0) + 1) * v.prepMinutes;
+    final earliest = now.add(Duration(minutes: wait < 15 ? 15 : wait));
+    var t = DateTime(earliest.year, earliest.month, earliest.day,
+        earliest.hour, (earliest.minute ~/ 15 + 1) * 15);
+    final today = v.hours[now.weekday];
+    final end = v.hasSchedule && today != null
+        ? DateTime(now.year, now.month, now.day)
+            .add(Duration(minutes: today.closeMinute))
+        : now.add(const Duration(hours: 4));
+    final out = <DateTime>[];
+    while (t.isBefore(end) && t.day == now.day && out.length < 48) {
+      if (v.isOpenAt(t)) out.add(t);
+      t = t.add(const Duration(minutes: 15));
+    }
+    return out;
   }
 
   double get _subtotal => ref.read(cartProvider.notifier).subtotal;
@@ -88,6 +118,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         paymentMethod: _payment,
         promoCode: _promo.text.trim(),
         note: _note.text.trim(),
+        pickupAt: _pickupAt,
       );
 
       ref.read(cartProvider.notifier).clear();
@@ -189,6 +220,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
           ),
         ),
+        if (_vendor != null) ...[
+          const SizedBox(height: 20),
+          _pickupTimeCard(_vendor!),
+        ],
         const SizedBox(height: 20),
 
         // Payment method
@@ -292,6 +327,48 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ),
         const SizedBox(height: 40),
       ],
+    );
+  }
+
+  Widget _pickupTimeCard(Vendor v) {
+    final slots = _slots(v);
+    // A previously chosen slot may have slipped into the past.
+    if (_pickupAt != null && !slots.contains(_pickupAt)) _pickupAt = null;
+    final asapLabel = _ordersAhead == null
+        ? 'As soon as possible'
+        : 'As soon as possible · ${waitLabel(v, _ordersAhead!)}';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Pickup time',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<DateTime?>(
+              // Rebuild when the slot window moves on, so the field never
+              // holds a value missing from its items.
+              key: ValueKey(slots.isEmpty ? null : slots.first),
+              initialValue: _pickupAt,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.schedule)),
+              items: [
+                DropdownMenuItem(value: null, child: Text(asapLabel)),
+                for (final t in slots)
+                  DropdownMenuItem(value: t, child: Text('Today, ${fmtClock(t)}')),
+              ],
+              onChanged: (t) => setState(() => _pickupAt = t),
+            ),
+            if (slots.isEmpty) ...[
+              const SizedBox(height: 8),
+              const Text('No later slots today. The stall closes soon.',
+                  style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

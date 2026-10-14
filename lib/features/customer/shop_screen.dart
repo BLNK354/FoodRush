@@ -52,7 +52,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
           .toList()
         ..sort((a, b) {
           // Open stalls first, then favorites, then alphabetical.
-          final open = (b.isOpen ? 1 : 0).compareTo(a.isOpen ? 1 : 0);
+          final open = (b.isOpenNow ? 1 : 0).compareTo(a.isOpenNow ? 1 : 0);
           if (open != 0) return open;
           final fav = (_favorites.contains(b.id) ? 1 : 0)
               .compareTo(_favorites.contains(a.id) ? 1 : 0);
@@ -158,7 +158,8 @@ class _StallCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final closed = !vendor.isOpen;
+    final closed = !vendor.isOpenNow;
+    final hours = vendor.hoursLabel(DateTime.now());
     return Card(
       child: InkWell(
         onTap: () => context.go('/stall/${vendor.id}'),
@@ -217,11 +218,24 @@ class _StallCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        RatingBadge(
+                            rating: vendor.rating, count: vendor.ratingCount),
+                        if (hours != null)
+                          Text(hours,
+                              style: const TextStyle(
+                                  color: FrColors.muted, fontSize: 12.5)),
+                      ],
+                    ),
                     if (vendor.description != null) ...[
                       const SizedBox(height: 4),
                       Text(
                         vendor.description!,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             color: FrColors.muted, fontSize: 13),

@@ -10,12 +10,17 @@ class OrderItem {
   final int qty;
   final double lineTotal;
 
+  /// True when placing the order took this qty out of the product's stock
+  /// (stock-limited product), so cancelling must put it back.
+  final bool stockTracked;
+
   const OrderItem({
     required this.productId,
     required this.name,
     required this.unitPrice,
     required this.qty,
     required this.lineTotal,
+    this.stockTracked = false,
   });
 
   factory OrderItem.fromMap(Map<String, dynamic> m) => OrderItem(
@@ -24,6 +29,7 @@ class OrderItem {
         unitPrice: ((m['unitPrice'] ?? 0) as num).toDouble(),
         qty: ((m['qty'] ?? 0) as num).toInt(),
         lineTotal: ((m['lineTotal'] ?? 0) as num).toDouble(),
+        stockTracked: m['stockTracked'] == true,
       );
 }
 
@@ -57,6 +63,12 @@ class Order {
   final DateTime? createdAt;
   final DateTime? readyAt;
   final DateTime? completedAt;
+
+  /// Requested pickup time; null = ASAP.
+  final DateTime? pickupAt;
+
+  /// Set once cancelled/rejected stock has been returned (never twice).
+  final bool stockReleased;
   final List<OrderItem> items;
 
   const Order({
@@ -82,6 +94,8 @@ class Order {
     this.createdAt,
     this.readyAt,
     this.completedAt,
+    this.pickupAt,
+    this.stockReleased = false,
     this.items = const [],
   });
 
@@ -112,6 +126,8 @@ class Order {
         createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
         readyAt: (m['readyAt'] as Timestamp?)?.toDate(),
         completedAt: (m['completedAt'] as Timestamp?)?.toDate(),
+        pickupAt: (m['pickupAt'] as Timestamp?)?.toDate(),
+        stockReleased: m['stockReleased'] == true,
         items: ((m['items'] as List<dynamic>? ?? const []))
             .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
             .toList(),
