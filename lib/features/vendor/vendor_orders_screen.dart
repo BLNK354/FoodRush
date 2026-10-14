@@ -326,6 +326,19 @@ class _OrderCard extends ConsumerWidget {
                         style: const TextStyle(
                             color: FrColors.muted, fontSize: 12.5),
                       ),
+                      if (order.isActive)
+                        Text(
+                          order.pickupAt == null
+                              ? 'Pickup: ASAP'
+                              : 'Pickup at ${fmtClock(order.pickupAt!)}',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: order.pickupAt == null
+                                ? FrColors.muted
+                                : FrColors.info,
+                          ),
+                        ),
                     ],
                   ),
                 ),

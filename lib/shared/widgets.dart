@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
 import '../core/theme.dart';
+import '../models/user.dart';
 
 // ---------------------------------------------------------------------------
 // Page scaffold (nav rails are provided by role shells)
@@ -290,6 +291,83 @@ class OrderProgressBar extends StatelessWidget {
       ],
     );
   }
+}
+
+/// "4.6 ★ (23)" — compact stall rating; renders "New" with no reviews.
+class RatingBadge extends StatelessWidget {
+  final double? rating;
+  final int count;
+  final double size;
+  const RatingBadge(
+      {super.key, required this.rating, required this.count, this.size = 13});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = rating;
+    if (r == null || count == 0) {
+      return Text('New',
+          style: TextStyle(
+              fontSize: size - 1,
+              color: FrColors.muted,
+              fontWeight: FontWeight.w700));
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.star_rounded, size: size + 3, color: FrColors.warning),
+        const SizedBox(width: 2),
+        Text(r.toStringAsFixed(1),
+            style: TextStyle(fontSize: size, fontWeight: FontWeight.w800)),
+        Text(' ($count)',
+            style: TextStyle(fontSize: size - 1, color: FrColors.muted)),
+      ],
+    );
+  }
+}
+
+/// Tappable 1-5 star input.
+class StarPicker extends StatelessWidget {
+  final int value; // 0 = none yet
+  final ValueChanged<int>? onChanged;
+  final double size;
+  const StarPicker(
+      {super.key, required this.value, this.onChanged, this.size = 36});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 1; i <= 5; i++)
+          IconButton(
+            tooltip: '$i star${i == 1 ? '' : 's'}',
+            visualDensity: VisualDensity.compact,
+            iconSize: size,
+            onPressed: onChanged == null ? null : () => onChanged!(i),
+            icon: Icon(
+              i <= value ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: i <= value ? FrColors.warning : FrColors.muted,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// "Ready in ~25 min" for a new ASAP order at [v], given the orders the
+/// stall is already working through.
+String waitLabel(Vendor v, int ordersAhead) {
+  final minutes = (ordersAhead + 1) * v.prepMinutes;
+  return minutes <= v.prepMinutes
+      ? 'Ready in ~$minutes min'
+      : 'Ready in ~$minutes min · $ordersAhead ahead';
+}
+
+/// "12:30 PM".
+String fmtClock(DateTime t) {
+  final h12 = t.hour % 12 == 0 ? 12 : t.hour % 12;
+  return '$h12:${t.minute.toString().padLeft(2, '0')} '
+      '${t.hour < 12 ? 'AM' : 'PM'}';
 }
 
 class FrTextField extends StatelessWidget {

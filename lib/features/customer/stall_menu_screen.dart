@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
+import '../../models/misc.dart';
 import '../../models/product.dart';
 import '../../models/user.dart';
 import '../../providers/cart_provider.dart';
@@ -23,6 +24,8 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
   Map<String, List<Product>> _byCategory = {};
   bool _loading = true;
   String? _error;
+  List<Review> _reviews = [];
+  int? _ordersAhead;
 
   @override
   void initState() {
@@ -40,9 +43,18 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
       final products =
           await Repository.instance.listProducts(widget.vendorId);
       final cats = await Repository.instance.listCategories(widget.vendorId);
+      // Extras: the page still works if either fails.
+      final reviews = await Repository.instance
+          .listVendorReviews(widget.vendorId)
+          .catchError((Object _) => <Review>[]);
+      final ahead = await Repository.instance
+          .ordersAhead(widget.vendorId)
+          .then<int?>((n) => n, onError: (Object _) => null);
       if (!mounted) return;
       setState(() {
         _vendor = vendor;
+        _reviews = reviews;
+        _ordersAhead = ahead;
         _products = products.where((p) => p.isAvailable).toList();
         _byCategory = {};
         for (final c in cats) {
@@ -64,7 +76,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
   }
 
   Future<void> _addToCart(Product p) async {
-    if (_vendor?.isOpen != true) {
+    if (_vendor?.isOpenNow != true) {
       showSnack(context, 'This stall is currently closed.', error: true);
       return;
     }
@@ -118,6 +130,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
 
   Widget _buildMenu(BuildContext context) {
     final v = _vendor!;
+    final hours = v.hoursLabel(DateTime.now());
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
@@ -160,11 +173,28 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                                 ),
                                 const SizedBox(width: 10),
                                 StatusChip(
-                                  v.isOpen ? 'Open' : 'Closed',
-                                  color: v.isOpen
+                                  v.isOpenNow ? 'Open' : 'Closed',
+                                  color: v.isOpenNow
                                       ? FrColors.success
                                       : FrColors.muted,
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 14,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                RatingBadge(
+                                    rating: v.rating,
+                                    count: v.ratingCount,
+                                    size: 14),
+                                if (hours != null)
+                                  _Meta(Icons.schedule, hours),
+                                if (v.isOpenNow && _ordersAhead != null)
+                                  _Meta(Icons.timer_outlined,
+                                      waitLabel(v, _ordersAhead!)),
                               ],
                             ),
                             if (v.description != null) ...[
@@ -201,7 +231,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
               ),
               const SizedBox(height: 24),
 
-              if (!v.isOpen)
+              if (!v.isOpenNow)
                 Container(
                   padding: const EdgeInsets.all(14),
                   margin: const EdgeInsets.only(bottom: 20),
@@ -209,13 +239,15 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                     color: FrColors.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(FrRadius.md),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.schedule, color: FrColors.warning),
-                      SizedBox(width: 10),
+                      const Icon(Icons.schedule, color: FrColors.warning),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'This stall is closed right now. You can browse the menu but cannot order.',
+                          'This stall is closed right now. You can browse '
+                          'the menu but cannot order.'
+                          '${hours == null ? '' : ' $hours.'}',
                         ),
                       ),
                     ],
@@ -250,19 +282,114 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                       itemBuilder: (context, i) =>
                           _ProductCard(
                         product: entry.value[i],
-                        stallOpen: v.isOpen,
+                        stallOpen: v.isOpenNow,
                         onAdd: () => _addToCart(entry.value[i]),
                       ),
                     );
                   }),
                 const SizedBox(height: 12),
               ],
+              const SizedBox(height: 12),
+              _ReviewsSection(vendor: v, reviews: _reviews),
               const SizedBox(height: 64),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// Icon + muted text, for the stall header's meta row.
+class _Meta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _Meta(this.icon, this.text);
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: FrColors.muted),
+          const SizedBox(width: 4),
+          Text(text,
+              style: const TextStyle(color: FrColors.muted, fontSize: 13)),
+        ],
+      );
+}
+
+class _ReviewsSection extends StatelessWidget {
+  final Vendor vendor;
+  final List<Review> reviews;
+  const _ReviewsSection({required this.vendor, required this.reviews});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Reviews'),
+        if (reviews.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text(
+                'No reviews yet. Students can rate a stall after picking up.',
+                style: TextStyle(color: FrColors.muted)),
+          )
+        else
+          for (final r in reviews)
+            Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        for (var i = 1; i <= 5; i++)
+                          Icon(
+                            i <= r.rating
+                                ? Icons.star_rounded
+                                : Icons.star_outline_rounded,
+                            size: 18,
+                            color: FrColors.warning,
+                          ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _reviewer(r),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                        ),
+                        if (r.createdAt != null)
+                          Text(
+                            '${r.createdAt!.month}/${r.createdAt!.day}/${r.createdAt!.year}',
+                            style: const TextStyle(
+                                color: FrColors.muted, fontSize: 12),
+                          ),
+                      ],
+                    ),
+                    if (r.comment != null) ...[
+                      const SizedBox(height: 6),
+                      Text(r.comment!),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+      ],
+    );
+  }
+
+  /// First name + last initial: enough to feel real, not a full identity.
+  static String _reviewer(Review r) {
+    final parts = (r.customerName ?? '').trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return 'Student';
+    if (parts.length == 1) return parts.first;
+    return '${parts.first} ${parts.last[0]}.';
   }
 }
 

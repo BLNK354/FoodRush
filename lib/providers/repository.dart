@@ -153,6 +153,8 @@ class Repository {
     bool? isOpen,
     String? logoUrl, // new logo (data URL); null keeps the current one
     bool removeLogo = false,
+    Map<int, DayHours>? hours, // empty map = no schedule
+    int? prepMinutes,
   }) async {
     await _db.collection(kColVendors).doc(vendorId).update({
       'name': name,
@@ -163,6 +165,9 @@ class Repository {
       if (isOpen != null) 'isOpen': isOpen,
       if (logoUrl != null) 'logoUrl': logoUrl,
       if (removeLogo && logoUrl == null) 'logoUrl': FieldValue.delete(),
+      if (hours != null)
+        'hours': {for (final e in hours.entries) '${e.key}': e.value.toMap()},
+      if (prepMinutes != null) 'prepMinutes': prepMinutes,
     });
   }
 
@@ -196,13 +201,24 @@ class Repository {
         .update({'isVerified': verified});
   }
 
+  /// Deletes the stall AND its products/categories — Firestore never
+  /// cascades, so leaving them would orphan the whole menu.
   Future<void> deleteVendor(String vendorId) async {
-    final batch = _db.batch();
     final vendorRef = _db.collection(kColVendors).doc(vendorId);
-    // Subcollections (products, categories) are deleted by rules/consolation;
-    // docs removal here covers the vendor doc itself.
-    batch.delete(vendorRef);
-    await batch.commit();
+    final refs = <DocumentReference>[];
+    for (final sub in [kColProducts, kColCategories]) {
+      final snap = await vendorRef.collection(sub).get();
+      refs.addAll(snap.docs.map((d) => d.reference));
+    }
+    refs.add(vendorRef); // last, so a partial failure can be retried
+    const chunk = 400; // batches cap at 500 writes
+    for (var i = 0; i < refs.length; i += chunk) {
+      final batch = _db.batch();
+      for (final r in refs.skip(i).take(chunk)) {
+        batch.delete(r);
+      }
+      await batch.commit();
+    }
   }
 
   // =========================================================================
@@ -423,17 +439,27 @@ class Repository {
     required String paymentMethod,
     String? promoCode,
     String? note,
+    DateTime? pickupAt, // null = ASAP
   }) async {
     final orderId = _db.collection(kColOrders).doc().id;
     final vendorDoc = await _db.collection(kColVendors).doc(vendorId).get();
     if (!vendorDoc.exists) throw Exception('Stall not found');
     final vendorData = vendorDoc.data()!;
-    if (vendorData['isOpen'] != true) {
+    final vendor = Vendor.fromMap(vendorDoc.id, vendorData);
+    final now = DateTime.now();
+    if (!vendor.isOpenAt(now)) {
       throw Exception('This stall is currently closed.');
+    }
+    if (pickupAt != null) {
+      if (pickupAt.isBefore(now)) {
+        throw Exception('Pick a pickup time later than now.');
+      }
+      if (!vendor.isOpenAt(pickupAt)) {
+        throw Exception('The stall is closed at that pickup time.');
+      }
     }
 
     // midnight today
-    final now = DateTime.now();
     final dayStart = DateTime(now.year, now.month, now.day);
     final dayStartTs = Timestamp.fromDate(dayStart);
 
@@ -442,25 +468,13 @@ class Repository {
     int queue = 0;
 
     await _db.runTransaction((tx) async {
+      // Firestore transactions must do ALL reads before ANY write — reading
+      // product 2 after writing product 1 fails on multi-item carts.
       final countersRef =
           _db.collection(kColCounters).doc('vendor_$vendorId');
       final counterSnap = await tx.get(countersRef);
-      int lastCount = 0;
-      DateTime? counterDay;
-      if (counterSnap.exists) {
-        lastCount = ((counterSnap.data()!['count'] ?? 0) as num).toInt();
-        counterDay = (counterSnap.data()!['day'] as Timestamp?)?.toDate();
-      }
-      final sameDay = counterDay != null &&
-          counterDay.year == dayStart.year &&
-          counterDay.month == dayStart.month &&
-          counterDay.day == dayStart.day;
-      final count = sameDay ? lastCount : 0;
-      queue = count + 1;
 
-      // Validate + price each item.
-      final pricedItems = <Map<String, dynamic>>[];
-      var sum = 0.0;
+      final lines = <(DocumentReference<Map<String, dynamic>>, Product, int)>[];
       for (final it in items) {
         final productId = it['product_id'] as String;
         final qty = (it['qty'] as num).toInt();
@@ -480,23 +494,49 @@ class Repository {
         if (p.stockQty != null && p.stockQty! < qty) {
           throw Exception('"${p.name}" only has ${p.stockQty} left.');
         }
-        tx.update(prodRef, {'stockQty': (p.stockQty ?? 0) - qty});
+        lines.add((prodRef, p, qty));
+      }
+
+      int lastCount = 0;
+      DateTime? counterDay;
+      if (counterSnap.exists) {
+        lastCount = ((counterSnap.data()!['count'] ?? 0) as num).toInt();
+        counterDay = (counterSnap.data()!['day'] as Timestamp?)?.toDate();
+      }
+      final sameDay = counterDay != null &&
+          counterDay.year == dayStart.year &&
+          counterDay.month == dayStart.month &&
+          counterDay.day == dayStart.day;
+      queue = (sameDay ? lastCount : 0) + 1;
+
+      final pricedItems = <Map<String, dynamic>>[];
+      var sum = 0.0;
+      for (final (_, p, qty) in lines) {
         pricedItems.add({
           'productId': p.id,
           'name': p.name,
           'unitPrice': p.price,
           'qty': qty,
           'lineTotal': double.parse((p.price * qty).toStringAsFixed(2)),
+          // Unlimited products (stockQty null) are never touched.
+          'stockTracked': p.stockQty != null,
         });
         sum += p.price * qty;
       }
       subtotal = double.parse(sum.toStringAsFixed(2));
 
-      discount = 0; // re-validated below if a code was provided
+      discount = 0; // re-validated here if a code was provided
       if (promoCode != null && promoCode.trim().isNotEmpty) {
         final promo =
             await applyPromo(code: promoCode, vendorId: vendorId, subtotal: subtotal);
         if (promo.valid) discount = promo.discount;
+      }
+
+      // ---- writes ----
+      for (final (ref, p, qty) in lines) {
+        if (p.stockQty != null) {
+          tx.update(ref, {'stockQty': p.stockQty! - qty});
+        }
       }
 
       tx.set(countersRef, {
@@ -523,6 +563,7 @@ class Repository {
             : null,
         'note': (note == null || note.trim().isEmpty) ? null : note.trim(),
         'queueNumber': queue,
+        'pickupAt': pickupAt == null ? null : Timestamp.fromDate(pickupAt),
         'receiptUrl': null,
         'receiptStatus': null,
         'receiptNote': null,
@@ -534,25 +575,58 @@ class Repository {
     return {'orderId': orderId, 'queueNumber': '$queue'};
   }
 
-  /// Orders for the signed-in customer, newest first — live stream.
-  /// (Sorted client-side to avoid needing a composite index.)
-  Stream<List<Order>> streamMyOrders() {
-    return _db
-        .collection(kColOrders)
-        .where('customerId', isEqualTo: _uid)
-        .limit(200)
-        .snapshots()
-        .map(_newestFirst);
-  }
-
-  /// Orders for one vendor — live stream.
-  Stream<List<Order>> streamVendorOrders(String vendorId) {
-    return _db
+  /// Orders the stall still has to work through before a new one —
+  /// drives "ready in about N min" estimates.
+  Future<int> ordersAhead(String vendorId) async {
+    final agg = await _db
         .collection(kColOrders)
         .where('vendorId', isEqualTo: vendorId)
-        .limit(300)
-        .snapshots()
-        .map(_newestFirst);
+        .where('status',
+            whereIn: [kOrderProofSubmitted, kOrderAccepted, kOrderPreparing])
+        .count()
+        .get();
+    return agg.count ?? 0;
+  }
+
+  /// One-time read of every order a stall has received (reports).
+  Future<List<Order>> listVendorOrders(String vendorId) async {
+    final snap = await _db
+        .collection(kColOrders)
+        .where('vendorId', isEqualTo: vendorId)
+        .get();
+    return snap.docs.map((d) => Order.fromMap(d.id, d.data())).toList();
+  }
+
+  /// Orders for the signed-in customer, newest first — live stream.
+  /// (Sorted client-side to avoid needing a composite index.)
+  Stream<List<Order>> streamMyOrders() =>
+      _newestOrders('customerId', _uid, limit: 200);
+
+  /// Orders for one vendor — live stream.
+  Stream<List<Order>> streamVendorOrders(String vendorId) =>
+      _newestOrders('vendorId', vendorId, limit: 300);
+
+  /// The newest [limit] orders where [field] == [value], live.
+  ///
+  /// A limit WITHOUT orderBy returns an arbitrary (doc-id ordered) subset, so
+  /// past the limit brand-new orders could silently go missing. Ordering by
+  /// createdAt needs the composite indexes in firebase/firestore.indexes.json;
+  /// until they're deployed Firestore answers failed-precondition and this
+  /// falls back to the old unordered query instead of breaking the page.
+  Stream<List<Order>> _newestOrders(String field, String value,
+      {required int limit}) async* {
+    final base = _db.collection(kColOrders).where(field, isEqualTo: value);
+    try {
+      await for (final s in base
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .snapshots()) {
+        yield _newestFirst(s);
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'failed-precondition') rethrow;
+      yield* base.limit(limit).snapshots().map(_newestFirst);
+    }
   }
 
   static List<Order> _newestFirst(QuerySnapshot<Map<String, dynamic>> s) {
@@ -604,13 +678,18 @@ class Repository {
     required bool approve,
     String? note,
   }) async {
-    await _db.collection(kColOrders).doc(orderId).update({
+    final patch = {
       'status': approve ? kOrderAccepted : kOrderRejected,
       'paymentStatus': approve ? 'paid' : 'unpaid',
       'receiptStatus': approve ? kProofVerified : kProofRejected,
       'receiptNote': note,
       if (!approve) 'rejectReason': note,
-    });
+    };
+    if (approve) {
+      await _db.collection(kColOrders).doc(orderId).update(patch);
+    } else {
+      await _endOrderReleasingStock(orderId, patch);
+    }
   }
 
   Future<void> updateOrderStatus(String orderId, String status) async {
@@ -625,10 +704,82 @@ class Repository {
   }
 
   Future<void> cancelOrder(String orderId, {String? reason}) async {
-    await _db.collection(kColOrders).doc(orderId).update({
+    await _endOrderReleasingStock(orderId, {
       'status': kOrderCancelled,
       if (reason != null) 'rejectReason': reason,
     });
+  }
+
+  /// Applies [patch] (a cancel/reject) and puts stock-tracked quantities back
+  /// on their products, atomically and at most once per order.
+  Future<void> _endOrderReleasingStock(
+      String orderId, Map<String, dynamic> patch) async {
+    final orderRef = _db.collection(kColOrders).doc(orderId);
+    final snap = await orderRef.get();
+    if (!snap.exists) throw Exception('Order not found');
+    final order = Order.fromMap(snap.id, snap.data()!);
+    final batch = _db.batch();
+    if (!order.stockReleased) {
+      for (final it in order.items.where((i) => i.stockTracked)) {
+        batch.update(
+          _db
+              .collection(kColVendors)
+              .doc(order.vendorId)
+              .collection(kColProducts)
+              .doc(it.productId),
+          {'stockQty': FieldValue.increment(it.qty)},
+        );
+      }
+    }
+    batch.update(orderRef, {...patch, 'stockReleased': true});
+    await batch.commit();
+  }
+
+  // =========================================================================
+  // REVIEWS (reviews/{orderId}: one per completed order)
+  // =========================================================================
+
+  Future<Review?> getReview(String orderId) async {
+    final snap = await _db.collection(kColReviews).doc(orderId).get();
+    return snap.exists ? Review.fromMap(snap.id, snap.data()!) : null;
+  }
+
+  /// Newest reviews for a stall (sorted client-side: no composite index).
+  Future<List<Review>> listVendorReviews(String vendorId,
+      {int limit = 20}) async {
+    final snap = await _db
+        .collection(kColReviews)
+        .where('vendorId', isEqualTo: vendorId)
+        .get();
+    final list =
+        snap.docs.map((d) => Review.fromMap(d.id, d.data())).toList();
+    list.sort((a, b) => (b.createdAt ?? DateTime(2000))
+        .compareTo(a.createdAt ?? DateTime(2000)));
+    return list.take(limit).toList();
+  }
+
+  /// Saves the review and bumps the stall's rating aggregates in one batch.
+  Future<void> submitReview({
+    required Order order,
+    required int rating,
+    String? comment,
+  }) async {
+    final batch = _db.batch();
+    batch.set(_db.collection(kColReviews).doc(order.id), {
+      'orderId': order.id,
+      'customerId': _uid,
+      'vendorId': order.vendorId,
+      'rating': rating,
+      'comment':
+          (comment == null || comment.trim().isEmpty) ? null : comment.trim(),
+      'customerName': _auth.currentUser?.displayName ?? '',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(_db.collection(kColVendors).doc(order.vendorId), {
+      'ratingSum': FieldValue.increment(rating),
+      'ratingCount': FieldValue.increment(1),
+    });
+    await batch.commit();
   }
 
   // =========================================================================

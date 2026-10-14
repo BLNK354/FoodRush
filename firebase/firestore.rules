@@ -67,17 +67,32 @@ service cloud.firestore {
       allow create: if (isVendor() && request.resource.data.ownerId == me()
                         && request.resource.data.isVerified == false)
                     || isAdmin();
-      // Owner edits everything except verification; admin sets verification.
+      // Owner edits everything except verification and the rating
+      // aggregates; admin may edit anything.
       allow update: if (signedIn() && resource.data.ownerId == me()
                         && !request.resource.data.diff(resource.data).affectedKeys()
-                              .hasAny(['isVerified', 'ownerId']))
+                              .hasAny(['isVerified', 'ownerId', 'ratingSum', 'ratingCount']))
                     || isAdmin();
+      // A review (batched with this write) bumps the aggregates: exactly one
+      // more review worth 1-5 stars, nothing else touched.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['ratingSum', 'ratingCount'])
+        && request.resource.data.ratingCount == resource.data.get('ratingCount', 0) + 1
+        && request.resource.data.ratingSum - resource.data.get('ratingSum', 0) >= 1
+        && request.resource.data.ratingSum - resource.data.get('ratingSum', 0) <= 5;
       allow delete: if isAdmin();
 
       // -------------------------------------------- products / categories --
       match /products/{productId} {
         allow read: if signedIn();
         allow write: if signedIn() && (ownsStall(vendorId) || isAdmin());
+        // Checkout takes stock and cancel/reject puts it back, written by the
+        // customer: only stockQty may change, and never below zero.
+        allow update: if signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stockQty'])
+          && request.resource.data.stockQty is int
+          && request.resource.data.stockQty >= 0;
       }
       match /categories/{categoryId} {
         allow read: if signedIn();
@@ -133,10 +148,23 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------- reviews -----
+    // reviews/{orderId}: one per order, by that order's customer, after
+    // pickup. Final once written so the stall's aggregates stay correct.
     match /reviews/{reviewId} {
+      function reviewedOrder() {
+        return get(/databases/$(database)/documents/orders/$(reviewId)).data;
+      }
       allow read: if true;
-      allow create: if signedIn() && request.resource.data.customerId == me();
-      allow update, delete: if resource.data.customerId == me() || isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.customerId == me()
+        && request.resource.data.orderId == reviewId
+        && reviewedOrder().customerId == me()
+        && reviewedOrder().status == 'completed'
+        && request.resource.data.vendorId == reviewedOrder().vendorId
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+      allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------- settings -----

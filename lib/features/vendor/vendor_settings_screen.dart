@@ -35,6 +35,16 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
   String? _newLogoName;
   bool _removeLogo = false;
 
+  /// Weekly schedule being edited; only saved when [_useSchedule].
+  Map<int, DayHours> _hours = {};
+  bool _useSchedule = false;
+  final _prep = TextEditingController();
+
+  /// Mon-Fri 7:00 AM-5:00 PM, the starting point when hours are switched on.
+  static final _defaultHours = {
+    for (var d = 1; d <= 5; d++) d: const DayHours(7 * 60, 17 * 60),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +58,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
     _gcashNumber.dispose();
     _gcashName.dispose();
     _pickupPoint.dispose();
+    _prep.dispose();
     super.dispose();
   }
 
@@ -67,6 +78,9 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         _gcashName.text = vendor.gcashName ?? '';
         _pickupPoint.text = vendor.pickupPoint ?? '';
         _isOpen = vendor.isOpen;
+        _hours = Map.of(vendor.hours);
+        _useSchedule = vendor.hasSchedule;
+        _prep.text = '${vendor.prepMinutes}';
         _newLogo = null;
         _newLogoName = null;
         _removeLogo = false;
@@ -82,6 +96,16 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) {
       showSnack(context, 'Stall name is required.', error: true);
+      return;
+    }
+    final prep = int.tryParse(_prep.text.trim());
+    if (prep == null || prep < 1 || prep > 120) {
+      showSnack(context, 'Prep time must be 1 to 120 minutes.', error: true);
+      return;
+    }
+    if (_useSchedule && _hours.isEmpty) {
+      showSnack(context, 'Open at least one day, or turn opening hours off.',
+          error: true);
       return;
     }
     setState(() => _saving = true);
@@ -108,6 +132,8 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         isOpen: _isOpen,
         logoUrl: logoUrl,
         removeLogo: _removeLogo,
+        hours: _useSchedule ? _hours : const {},
+        prepMinutes: prep,
       );
       if (!mounted) return;
       showSnack(context, 'Settings saved.');
@@ -117,6 +143,108 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _pickTime(int day, bool open) async {
+    final h = _hours[day]!;
+    final current = open ? h.openMinute : h.closeMinute;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: current ~/ 60, minute: current % 60),
+    );
+    if (picked == null) return;
+    final m = picked.hour * 60 + picked.minute;
+    final next = open ? DayHours(m, h.closeMinute) : DayHours(h.openMinute, m);
+    if (next.closeMinute <= next.openMinute) {
+      if (mounted) {
+        showSnack(context, 'Closing time must be after opening time.',
+            error: true);
+      }
+      return;
+    }
+    setState(() => _hours[day] = next);
+  }
+
+  Widget _hoursCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeader('Opening hours & prep time'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Use opening hours'),
+              subtitle: const Text(
+                  'Students can only order while you are open AND inside these '
+                  'hours. Off: the open switch alone decides.'),
+              value: _useSchedule,
+              onChanged: (v) => setState(() {
+                _useSchedule = v;
+                if (v && _hours.isEmpty) _hours = Map.of(_defaultHours);
+              }),
+            ),
+            if (_useSchedule)
+              for (var day = 1; day <= 7; day++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 56,
+                        child: Text(kWeekdayShort[day - 1],
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                      Checkbox(
+                        value: _hours.containsKey(day),
+                        onChanged: (on) => setState(() {
+                          if (on == true) {
+                            _hours[day] = _hours.values.isNotEmpty
+                                ? _hours.values.first
+                                : const DayHours(7 * 60, 17 * 60);
+                          } else {
+                            _hours.remove(day);
+                          }
+                        }),
+                      ),
+                      if (_hours[day] == null)
+                        const Text('Closed',
+                            style: TextStyle(color: FrColors.muted))
+                      else
+                        Expanded(
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              TextButton(
+                                onPressed: () => _pickTime(day, true),
+                                child: Text(
+                                    fmtMinuteOfDay(_hours[day]!.openMinute)),
+                              ),
+                              const Text('to'),
+                              TextButton(
+                                onPressed: () => _pickTime(day, false),
+                                child: Text(
+                                    fmtMinuteOfDay(_hours[day]!.closeMinute)),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            const SizedBox(height: 14),
+            FrTextField(
+              controller: _prep,
+              label: 'Average minutes to prepare one order',
+              keyboardType: TextInputType.number,
+              hint: 'Used for the "Ready in ~N min" estimate students see',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickLogo() async {
@@ -261,6 +389,8 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 20),
+        _hoursCard(),
         const SizedBox(height: 20),
         Card(
           child: SwitchListTile(

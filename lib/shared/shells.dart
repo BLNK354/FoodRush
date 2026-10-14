@@ -130,6 +130,7 @@ const _vendorDests = [
   SideDest('/vendor/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
   SideDest('/vendor/menu', Icons.restaurant_menu_outlined, Icons.restaurant_menu, 'Menu'),
   SideDest('/vendor/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
+  SideDest('/vendor/reports', Icons.insights_outlined, Icons.insights, 'Reports'),
   SideDest('/vendor/settings', Icons.settings_outlined, Icons.settings, 'Settings'),
 ];
 

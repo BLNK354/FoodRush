@@ -21,8 +21,14 @@
 **Build → Firestore Database → Create database** → pick a location (e.g.
 `asia-southeast1`) → start in **production mode** (our rules take over).
 
-## 5. Publish the security rules
+## 5. Publish the security rules and indexes
 - **Firestore Database → Rules** → paste all of `firebase/firestore.rules` → **Publish**.
+- **Indexes**: the order lists need two composite indexes (orders by
+  `vendorId` / `customerId`, newest first). Either run
+  `firebase deploy --only firestore` (deploys rules + `firestore.indexes.json`),
+  or open the stall's Orders page once: Firestore logs a console link that
+  creates the missing index in one click. Until they exist the app falls
+  back to an unordered list, so nothing breaks while they build.
 
 > Images (product photos, GCash receipts) are stored **directly in Firestore**
 > as compressed data URLs — no Cloud Storage needed, so **no Blaze/billing
@@ -76,5 +82,8 @@ Use three browser profiles (or one normal + one incognito window each):
   Firestore rules (`users` create rejects non-campus customer emails).
 - Realtime is native to Firestore: vendor order queue, customer tracking,
   and admin order list all update live without any extra setup.
-- Composite indexes: none needed — all list queries are equality-only and
-  sorted client-side, so the app works immediately after rules are published.
+- Composite indexes: only the two order-list indexes above. Everything
+  else is equality-only and sorted client-side.
+- Alerts ("order ready", "new order") are browser notifications raised
+  while FoodRush is open in a tab. Push to a closed app would need Firebase
+  Cloud Messaging + Cloud Functions (Blaze plan).

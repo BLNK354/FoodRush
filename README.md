@@ -7,7 +7,7 @@ Campus food pre-ordering for LPU — order ahead from campus stalls, **skip the 
 | Layer | Tech |
 |---|---|
 | Frontend | Flutter web (Material 3, responsive) |
-| Backend | Firebase — Auth + Cloud Firestore (native realtime) + Storage |
+| Backend | Firebase — Auth + Cloud Firestore (native realtime). Images are stored in Firestore as compressed data URLs, so no Storage/Blaze plan is needed |
 | Routing / state | go_router + flutter_riverpod |
 | Hosting | Vercel |
 
@@ -87,11 +87,12 @@ vercel.json      SPA rewrites + caching + build config
 
 - **Firestore collections**: `users/{uid}`, `vendors/{id}` (with `products/` and `categories/` subcollections), `orders/{id}` (line items embedded in the order doc), `favorites`, `promotions`, `reviews`, `settings/platform_gcash`, `counters/vendor_{id}` (per-stall daily queue counter).
 - **Realtime**: order lists and the tracking page use Firestore snapshots — vendor queue and customer status update live with zero extra plumbing.
-- **Atomic ordering**: `placeOrder` runs in a transaction that re-validates every product, decrements stock, and assigns the per-stall daily queue number from a counter doc.
+- **Atomic ordering**: `placeOrder` runs in a transaction that re-validates every product, decrements stock (stock-limited products only), and assigns the per-stall daily queue number from a counter doc. Cancelled and rejected orders put their stock back exactly once.
 
 ## Security notes
 
 - Access is governed by `firebase/firestore.rules`: customers read verified stalls and only their own orders; vendors manage only their stall's menu and orders; admins (role on the user doc) manage the platform. The role field cannot be self-modified.
 - The LPU email gate is enforced in the signup form **and** the Firestore rules on user creation.
-- GCash receipts live under `payment-proofs/{uid}/` in Storage — signed-in users (stall staff verifying payments) can read; only the uploader writes into their own folder.
+- GCash receipts are stored on the order document (compressed image data URL); signed-in users can read orders, and only the customer may attach a receipt to their own unpaid order.
+- Deactivated accounts are signed out by the app and refused writes by the rules. Reviews can only be written once, by the customer of a completed order.
 - Passwords are handled entirely by Firebase Auth.
