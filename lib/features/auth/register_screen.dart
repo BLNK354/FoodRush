@@ -165,7 +165,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.admin_panel_settings,
+                    Icon(Icons.admin_panel_settings,
                         color: FrColors.warning, size: 22),
                     const SizedBox(width: 8),
                     Expanded(
@@ -274,7 +274,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   color: FrColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(FrRadius.md),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.info_outline,
                         color: FrColors.warning, size: 20),
@@ -317,7 +317,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Already have an account?',
+                Text('Already have an account?',
                     style: TextStyle(color: FrColors.muted)),
                 TextButton(
                   onPressed: () => context.go('/login'),
@@ -375,7 +375,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
           Text('for $kUniversityName — order ahead, skip the line',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: FrColors.muted)),
+              style: TextStyle(fontSize: 13, color: FrColors.muted)),
         ],
       );
 }

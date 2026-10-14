@@ -76,7 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
-          const Text('Sign in to skip the line at your favorite stalls.',
+          Text('Sign in to skip the line at your favorite stalls.',
               style: TextStyle(color: FrColors.muted)),
           const SizedBox(height: 24),
           if (notice != null) ...[
@@ -88,11 +88,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.block, color: FrColors.danger, size: 20),
+                  Icon(Icons.block, color: FrColors.danger, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(notice,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.danger,
                             fontWeight: FontWeight.w600)),
                   ),
@@ -139,7 +139,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("Don't have an account?",
+              Text("Don't have an account?",
                   style: TextStyle(color: FrColors.muted)),
               TextButton(
                 onPressed: () => context.go('/register'),
@@ -205,7 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               style: TextStyle(
                   fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
           Text('for $kUniversityName — order ahead, skip the line',
-              style: const TextStyle(fontSize: 13, color: FrColors.muted)),
+              style: TextStyle(fontSize: 13, color: FrColors.muted)),
         ],
       );
 
@@ -225,7 +225,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const Text('FoodRush',
               style: TextStyle(
                   fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1)),
-          const Text('for $kUniversityName',
+          Text('for $kUniversityName',
               style: TextStyle(fontSize: 18, color: FrColors.muted)),
           const SizedBox(height: 16),
           const Text(
@@ -274,7 +274,7 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text("We'll email you a link to set a new password.",
+          Text("We'll email you a link to set a new password.",
               style: TextStyle(color: FrColors.muted)),
           const SizedBox(height: 16),
           FrTextField(

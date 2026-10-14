@@ -140,6 +140,7 @@ const _adminDests = [
   SideDest('/admin/vendors', Icons.storefront_outlined, Icons.storefront, 'Stalls'),
   SideDest('/admin/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
   SideDest('/admin/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
+  SideDest('/admin/reports', Icons.insights_outlined, Icons.insights, 'Reports'),
 ];
 
 class StaffShell extends ConsumerWidget {
@@ -277,13 +278,13 @@ class StaffShell extends ConsumerWidget {
                     children: [
                       IconButton(
                         tooltip: 'My profile',
-                        icon: const Icon(Icons.account_circle_outlined,
+                        icon: Icon(Icons.account_circle_outlined,
                             color: FrColors.muted),
                         onPressed: () => context.go('/profile'),
                       ),
                       IconButton(
                         tooltip: 'Sign out',
-                        icon: const Icon(Icons.logout, color: FrColors.muted),
+                        icon: Icon(Icons.logout, color: FrColors.muted),
                         onPressed: () =>
                             ref.read(authControllerProvider.notifier).signOut(),
                       ),

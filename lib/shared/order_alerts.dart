@@ -35,6 +35,10 @@ class _OrderAlertsState extends State<OrderAlerts> {
   /// orders that already existed don't alert on page load.
   Map<String, String>? _seen;
 
+  /// Vendor only: the stall, and the queue size last published for it.
+  String? _stallId;
+  int? _publishedActive;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +50,7 @@ class _OrderAlertsState extends State<OrderAlerts> {
     if (widget.vendor) {
       final stall = await Repository.instance.getMyVendor();
       if (stall == null || !mounted) return;
+      _stallId = stall.id;
       stream = Repository.instance.streamVendorOrders(stall.id);
     } else {
       stream = Repository.instance.streamMyOrders();
@@ -58,6 +63,7 @@ class _OrderAlertsState extends State<OrderAlerts> {
     _seen = {for (final o in orders) o.id: o.status};
 
     browser.setTitleBadge(orders.where(_needsAttention).length);
+    _publishQueue(orders);
     if (previous == null) return; // first snapshot: seed only
 
     for (final o in orders) {
@@ -66,6 +72,19 @@ class _OrderAlertsState extends State<OrderAlerts> {
       final alert = widget.vendor ? _vendorAlert(o, before) : _customerAlert(o);
       if (alert != null) _raise(alert.$1, alert.$2, o);
     }
+  }
+
+  /// Students can't read other people's orders, so the stall's app keeps
+  /// the queue size on its counter doc for their wait estimates.
+  void _publishQueue(List<Order> orders) {
+    final stall = _stallId;
+    if (stall == null) return;
+    final active = orders.where(Repository.isInQueue).length;
+    if (active == _publishedActive) return;
+    _publishedActive = active;
+    Repository.instance
+        .publishActiveCount(stall, active)
+        .catchError((Object _) => _publishedActive = null); // retry next time
   }
 
   bool _needsAttention(Order o) => widget.vendor

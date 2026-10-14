@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/order.dart';
+import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
 import '../../shared/widgets.dart';
+import 'reorder.dart';
 
 class OrdersHistoryScreen extends ConsumerStatefulWidget {
   const OrdersHistoryScreen({super.key});
@@ -21,6 +23,35 @@ class OrdersHistoryScreen extends ConsumerStatefulWidget {
 class _OrdersHistoryScreenState extends ConsumerState<OrdersHistoryScreen> {
   List<Order>? _orders;
   StreamSubscription<List<Order>>? _sub;
+
+  /// Past orders beyond the live newest-200, fetched with "Load older".
+  List<Order> _older = [];
+  bool _loadingOlder = false;
+  bool _noMoreOlder = false;
+
+  Future<void> _loadOlder() async {
+    final all = [...?_orders, ..._older];
+    final uid = ref.read(authControllerProvider).profile?.id;
+    final oldest = all
+        .map((o) => o.createdAt)
+        .whereType<DateTime>()
+        .fold<DateTime?>(null, (m, d) => m == null || d.isBefore(m) ? d : m);
+    if (oldest == null || uid == null) return;
+    setState(() => _loadingOlder = true);
+    try {
+      final more = await Repository.instance
+          .olderOrders(field: 'customerId', value: uid, before: oldest);
+      if (!mounted) return;
+      setState(() {
+        _older = [..._older, ...more];
+        _noMoreOlder = more.length < 50;
+      });
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not load older orders: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
 
   @override
   void initState() {
@@ -81,11 +112,19 @@ class _OrdersHistoryScreenState extends ConsumerState<OrdersHistoryScreen> {
           const SizedBox(height: 24),
           _OrderSection(
             title: 'Past',
-            orders: orders
+            orders: [...orders, ..._older]
                 .where((o) => !o.isActive)
                 .toList(),
             emptyText: 'Nothing here yet.',
           ),
+          if (!_noMoreOlder && orders.length >= 20)
+            Center(
+              child: TextButton.icon(
+                onPressed: _loadingOlder ? null : _loadOlder,
+                icon: const Icon(Icons.history),
+                label: Text(_loadingOlder ? 'Loading…' : 'Load older orders'),
+              ),
+            ),
         ],
         const SizedBox(height: 40),
       ],
@@ -111,7 +150,7 @@ class _OrderSection extends StatelessWidget {
       children: [
         SectionHeader(title),
         if (orders.isEmpty)
-          Text(emptyText, style: const TextStyle(color: FrColors.muted))
+          Text(emptyText, style: TextStyle(color: FrColors.muted))
         else
           ...orders.map((o) => _OrderCard(order: o)),
       ],
@@ -162,9 +201,17 @@ class _OrderCard extends ConsumerWidget {
                     Text(
                       '${order.orderNumber} · $dateStr · '
                       '${order.items.length} item${order.items.length == 1 ? '' : 's'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: FrColors.muted, fontSize: 12.5),
                     ),
+                    if (order.refundStatus != null) ...[
+                      const SizedBox(height: 6),
+                      order.refundOwed
+                          ? StatusChip('Refund pending: ${peso(order.total)}',
+                              color: FrColors.warning)
+                          : StatusChip('Refunded',
+                              color: FrColors.success),
+                    ],
                     if (order.isActive) ...[
                       const SizedBox(height: 10),
                       OrderProgressBar(
@@ -195,8 +242,14 @@ class _OrderCard extends ConsumerWidget {
                       order.status == kOrderProofSubmitted))
                 IconButton(
                   tooltip: 'Cancel order',
-                  icon: const Icon(Icons.close, color: FrColors.muted),
+                  icon: Icon(Icons.close, color: FrColors.muted),
                   onPressed: () => _cancel(context, ref),
+                ),
+              if (!order.isActive)
+                IconButton(
+                  tooltip: 'Order again',
+                  icon: const Icon(Icons.replay, color: FrColors.primary),
+                  onPressed: () => reorder(context, ref, order),
                 ),
             ],
           ),
@@ -209,8 +262,10 @@ class _OrderCard extends ConsumerWidget {
     final ok = await confirmDialog(
       context,
       title: 'Cancel this order?',
-      message: 'This cannot be undone. If you already paid via GCash, '
-          'coordinate with the stall for a refund.',
+      message: order.status == kOrderProofSubmitted
+          ? 'This cannot be undone. You already sent payment, so the stall '
+              'will owe you a ${peso(order.total)} refund. You can follow it here.'
+          : 'This cannot be undone.',
       confirmLabel: 'Cancel order',
       destructive: true,
     );

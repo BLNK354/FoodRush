@@ -23,6 +23,15 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
   String? _error;
   StreamSubscription<List<Order>>? _ordersSub;
   String _tab = 'active';
+  String? _vendorId;
+
+  /// productId -> current menu price, for the per-order price check.
+  Map<String, double>? _menuPrices;
+
+  /// Older completed orders fetched with "Load older" (beyond the live 300).
+  List<Order> _older = [];
+  bool _loadingOlder = false;
+  bool _noMoreOlder = false;
 
   @override
   void initState() {
@@ -48,7 +57,14 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
         return;
       }
       if (!mounted) return;
-      setState(() => _error = null);
+      setState(() {
+        _error = null;
+        _vendorId = vendor.id;
+      });
+      Repository.instance.listProducts(vendor.id).then((products) {
+        if (!mounted) return;
+        setState(() => _menuPrices = {for (final p in products) p.id: p.price});
+      }, onError: (Object _) {});
       // Live stream — orders update in real time, no polling.
       _ordersSub ??= Repository.instance
           .streamVendorOrders(vendor.id)
@@ -83,12 +99,18 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
                 o.status == kOrderPreparing || o.status == kOrderReady)
             .toList();
       case 'done':
-        return _orders
+        return [..._orders, ..._older]
             .where((o) =>
                 o.status == kOrderCompleted ||
                 o.status == kOrderRejected ||
                 o.status == kOrderCancelled)
             .toList();
+      case 'refunds':
+        return [..._orders, ..._older]
+            .where((o) => o.refundStatus != null)
+            .toList()
+          ..sort((a, b) =>
+              (a.refundOwed ? 0 : 1).compareTo(b.refundOwed ? 0 : 1));
       default:
         return _orders.where((o) => o.isActive).toList();
     }
@@ -96,6 +118,7 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final refundsOwed = _orders.where((o) => o.refundOwed).length;
     return FrPage(
       title: 'Orders',
       subtitle: 'Live queue — updates automatically.',
@@ -105,12 +128,14 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
       children: [
         Wrap(
           spacing: 8,
+          runSpacing: 8,
           children: [
-            for (final t in const [
+            for (final t in [
               ('needs_action', 'Needs action'),
               ('preparing', 'Preparing / ready'),
               ('active', 'All active'),
               ('done', 'Completed'),
+              ('refunds', refundsOwed > 0 ? 'Refunds ($refundsOwed)' : 'Refunds'),
             ])
               ChoiceChip(
                 label: Text(t.$2),
@@ -143,11 +168,45 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
         else
           ..._filtered.map((o) => _OrderCard(
                 order: o,
+                menuPrices: _menuPrices,
                 onAction: _handleAction,
               )),
+        if ((_tab == 'done' || _tab == 'refunds') &&
+            _orders.isNotEmpty &&
+            !_noMoreOlder)
+          Center(
+            child: TextButton.icon(
+              onPressed: _loadingOlder ? null : _loadOlder,
+              icon: const Icon(Icons.history),
+              label: Text(_loadingOlder ? 'Loading…' : 'Load older orders'),
+            ),
+          ),
         const SizedBox(height: 40),
       ],
     );
+  }
+
+  Future<void> _loadOlder() async {
+    final all = [..._orders, ..._older];
+    final oldest = all
+        .map((o) => o.createdAt)
+        .whereType<DateTime>()
+        .fold<DateTime?>(null, (m, d) => m == null || d.isBefore(m) ? d : m);
+    if (oldest == null || _vendorId == null) return;
+    setState(() => _loadingOlder = true);
+    try {
+      final more = await Repository.instance.olderOrders(
+          field: 'vendorId', value: _vendorId, before: oldest);
+      if (!mounted) return;
+      setState(() {
+        _older = [..._older, ...more];
+        _noMoreOlder = more.length < 50;
+      });
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not load older orders: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   Future<void> _handleAction(Order order, String action) async {
@@ -187,6 +246,33 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
         case 'complete':
           await Repository.instance
               .updateOrderStatus(order.id, kOrderCompleted);
+          break;
+        case 'cancel':
+          final reason = await _promptText(
+            'Cancel this order?',
+            'Reason shown to the customer:',
+            initial: 'Sorry, this item is sold out.',
+          );
+          if (reason == null) return;
+          await Repository.instance.cancelOrder(order.id, reason: reason);
+          if (mounted && order.isPaidFlow &&
+              (order.status != kOrderAwaitingPayment)) {
+            showSnack(context,
+                'Cancelled. Refund of ${peso(order.total)} is now owed (see Refunds).');
+            return;
+          }
+          break;
+        case 'refunded':
+          final ok = await confirmDialog(
+            context,
+            title: 'Mark ${peso(order.total)} as refunded?',
+            message: 'Only do this after sending the money back to '
+                '${order.customerName?.isNotEmpty == true ? order.customerName : 'the student'}'
+                ' via GCash (use the number on their receipt).',
+            confirmLabel: 'Mark refunded',
+          );
+          if (!ok) return;
+          await Repository.instance.markRefunded(order.id);
           break;
       }
       if (mounted) showSnack(context, 'Order updated.');
@@ -279,9 +365,14 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
 
 class _OrderCard extends ConsumerWidget {
   final Order order;
+  final Map<String, double>? menuPrices;
   final Future<void> Function(Order, String) onAction;
 
-  const _OrderCard({required this.order, required this.onAction});
+  const _OrderCard({
+    required this.order,
+    required this.menuPrices,
+    required this.onAction,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -323,7 +414,7 @@ class _OrderCard extends ConsumerWidget {
                       ),
                       Text(
                         '${order.orderNumber} · ${_fmt(order.createdAt)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.muted, fontSize: 12.5),
                       ),
                       if (order.isActive)
@@ -391,17 +482,27 @@ class _OrderCard extends ConsumerWidget {
             if (order.note != null && order.note!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text('Note: ${order.note}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontStyle: FontStyle.italic,
                       color: FrColors.muted,
                       fontSize: 12.5)),
             ],
             if (order.rejectReason != null) ...[
               const SizedBox(height: 8),
-              Text('Rejected: ${order.rejectReason}',
-                  style: const TextStyle(
+              Text(
+                  '${order.status == kOrderCancelled ? 'Cancelled' : 'Rejected'}: '
+                  '${order.rejectReason}',
+                  style: TextStyle(
                       color: FrColors.danger, fontSize: 12.5)),
             ],
+            if (order.refundStatus != null) ...[
+              const SizedBox(height: 8),
+              order.refundOwed
+                  ? StatusChip('Refund owed: ${peso(order.total)}',
+                      color: FrColors.danger)
+                  : StatusChip('Refunded', color: FrColors.success),
+            ],
+            if (order.isActive) _integrityWarning(),
             const SizedBox(height: 14),
             _buildActions(context, needsPaymentReview),
           ],
@@ -438,9 +539,46 @@ class _OrderCard extends ConsumerWidget {
       default:
         break;
     }
+    // The stall can cancel anything not yet picked up (e.g. sold out);
+    // receipts under review use Reject instead.
+    if (order.isActive && order.status != kOrderProofSubmitted) {
+      children.add(_actionBtn('Cancel', 'cancel', FrColors.muted));
+    }
+    if (order.refundOwed) {
+      children.add(_actionBtn('Mark refunded', 'refunded', FrColors.success));
+    }
 
     if (children.isEmpty) return const SizedBox.shrink();
     return Wrap(spacing: 10, runSpacing: 8, children: children);
+  }
+
+  /// Prices that don't match the menu mean the order didn't come from the
+  /// app as-is (or the menu changed since): check before accepting.
+  Widget _integrityWarning() {
+    final issues = order.integrityIssues(menuPrices);
+    if (issues.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: FrColors.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(FrRadius.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded,
+              color: FrColors.danger, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Check this order before accepting:\n• ${issues.join('\n• ')}',
+              style: TextStyle(color: FrColors.danger, fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _actionBtn(String label, String action, Color color) {
@@ -464,7 +602,7 @@ class _OrderCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(FrRadius.md),
       ),
       child: Text(label,
-          style: const TextStyle(color: FrColors.muted, fontSize: 13)),
+          style: TextStyle(color: FrColors.muted, fontSize: 13)),
     );
   }
 

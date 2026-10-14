@@ -2,22 +2,31 @@ import 'package:flutter/material.dart';
 
 /// FoodRush design tokens + Material 3 theme.
 abstract final class FrColors {
+  /// Set by FoodRushApp from the resolved light/dark mode before it builds
+  /// (and every widget is rebuilt when it flips). Neutrals and status
+  /// colors below read it; brand colors are the same in both modes.
+  static bool dark = false;
+
   static const Color primary = Color(0xFFE23744); // foodpanda-esque red
   static const Color primaryDark = Color(0xFFB02A34);
   static const Color secondary = Color(0xFFFF8A00); // hungry orange
-  static const Color cream = Color(0xFFFFF8F0);
-  static const Color surface = Colors.white;
-  static const Color ink = Color(0xFF231F20);
-  static const Color muted = Color(0xFF7A7470);
-  static const Color line = Color(0xFFEDE4DC);
 
-  static const Color success = Color(0xFF1B9E4B);
-  static const Color warning = Color(0xFFE6A700);
-  static const Color danger = Color(0xFFD32F2F);
-  static const Color info = Color(0xFF1976D2);
+  // Neutrals. Dark steps are their own warm greys (not an inverted light
+  // palette); muted text clears 4.5:1 on its own mode's background.
+  static Color get cream => dark ? const Color(0xFF171412) : const Color(0xFFFFF8F0);
+  static Color get surface => dark ? const Color(0xFF231F1D) : Colors.white;
+  static Color get ink => dark ? const Color(0xFFF4EFEA) : const Color(0xFF231F20);
+  static Color get muted => dark ? const Color(0xFFADA59F) : const Color(0xFF6E6864);
+  static Color get line => dark ? const Color(0xFF3A3431) : const Color(0xFFEDE4DC);
 
-  static const Color chipCash = Color(0xFF2E7D32);
-  static const Color chipGcash = Color(0xFF0057E4);
+  // Status colors: lighter steps in dark mode so they stay legible as text.
+  static Color get success => dark ? const Color(0xFF4CC274) : const Color(0xFF15803D);
+  static Color get warning => dark ? const Color(0xFFF2C14E) : const Color(0xFF946A00);
+  static Color get danger => dark ? const Color(0xFFFF6B6B) : const Color(0xFFD32F2F);
+  static Color get info => dark ? const Color(0xFF6CB2FF) : const Color(0xFF1976D2);
+
+  static Color get chipCash => dark ? const Color(0xFF66BB6A) : const Color(0xFF2E7D32);
+  static Color get chipGcash => dark ? const Color(0xFF6FA8FF) : const Color(0xFF0057E4);
 }
 
 abstract final class FrRadius {
@@ -36,23 +45,29 @@ abstract final class FrSpacing {
   static const double xxl = 48;
 }
 
+/// The app theme for the current [FrColors.dark] mode.
 ThemeData buildFrTheme() {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: FrColors.primary,
+    brightness: FrColors.dark ? Brightness.dark : Brightness.light,
     primary: FrColors.primary,
+    onPrimary: Colors.white,
     secondary: FrColors.secondary,
     surface: FrColors.surface,
+    onSurface: FrColors.ink,
+    error: FrColors.danger,
   );
 
   final base = ThemeData(
     useMaterial3: true,
+    brightness: colorScheme.brightness,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: FrColors.cream,
     fontFamily: 'Roboto',
   );
 
   return base.copyWith(
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: FrColors.surface,
       foregroundColor: FrColors.ink,
       elevation: 0,
@@ -69,7 +84,7 @@ ThemeData buildFrTheme() {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(FrRadius.lg),
-        side: const BorderSide(color: FrColors.line),
+        side: BorderSide(color: FrColors.line),
       ),
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
@@ -80,11 +95,11 @@ ThemeData buildFrTheme() {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(FrRadius.md),
-        borderSide: const BorderSide(color: FrColors.line),
+        borderSide: BorderSide(color: FrColors.line),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(FrRadius.md),
-        borderSide: const BorderSide(color: FrColors.line),
+        borderSide: BorderSide(color: FrColors.line),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(FrRadius.md),
@@ -92,13 +107,13 @@ ThemeData buildFrTheme() {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(FrRadius.md),
-        borderSide: const BorderSide(color: FrColors.danger),
+        borderSide: BorderSide(color: FrColors.danger),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(FrRadius.md),
-        borderSide: const BorderSide(color: FrColors.danger, width: 1.6),
+        borderSide: BorderSide(color: FrColors.danger, width: 1.6),
       ),
-      hintStyle: const TextStyle(color: FrColors.muted),
+      hintStyle: TextStyle(color: FrColors.muted),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -132,21 +147,22 @@ ThemeData buildFrTheme() {
     chipTheme: base.chipTheme.copyWith(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(FrRadius.sm),
-        side: const BorderSide(color: FrColors.line),
+        side: BorderSide(color: FrColors.line),
       ),
       backgroundColor: FrColors.surface,
-      labelStyle: const TextStyle(
+      labelStyle: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: FrColors.ink,
       ),
     ),
-    snackBarTheme: const SnackBarThemeData(
+    snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: FrColors.ink,
-      contentTextStyle: TextStyle(color: Colors.white),
+      backgroundColor: FrColors.dark ? const Color(0xFF3A3431) : FrColors.ink,
+      contentTextStyle: const TextStyle(color: Colors.white),
+      actionTextColor: FrColors.dark ? const Color(0xFFFF8A8A) : null,
     ),
-    dividerTheme: const DividerThemeData(color: FrColors.line, thickness: 1),
+    dividerTheme: DividerThemeData(color: FrColors.line, thickness: 1),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: FrColors.surface,
       indicatorColor: FrColors.primary.withValues(alpha: 0.12),
@@ -155,21 +171,21 @@ ThemeData buildFrTheme() {
         color: FrColors.primary,
         fontWeight: FontWeight.w800,
       ),
-      unselectedIconTheme: const IconThemeData(color: FrColors.muted),
-      unselectedLabelTextStyle: const TextStyle(color: FrColors.muted),
+      unselectedIconTheme: IconThemeData(color: FrColors.muted),
+      unselectedLabelTextStyle: TextStyle(color: FrColors.muted),
     ),
     menuButtonTheme: MenuButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: FrColors.surface,
         foregroundColor: FrColors.ink,
         elevation: 0,
-        side: const BorderSide(color: FrColors.line),
+        side: BorderSide(color: FrColors.line),
       ),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: FrColors.primary,
     ),
-    tabBarTheme: const TabBarThemeData(
+    tabBarTheme: TabBarThemeData(
       labelColor: FrColors.primary,
       unselectedLabelColor: FrColors.muted,
       indicatorColor: FrColors.primary,

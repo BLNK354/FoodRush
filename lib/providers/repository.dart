@@ -575,17 +575,54 @@ class Repository {
     return {'orderId': orderId, 'queueNumber': '$queue'};
   }
 
-  /// Orders the stall still has to work through before a new one —
-  /// drives "ready in about N min" estimates.
-  Future<int> ordersAhead(String vendorId) async {
-    final agg = await _db
-        .collection(kColOrders)
-        .where('vendorId', isEqualTo: vendorId)
-        .where('status',
-            whereIn: [kOrderProofSubmitted, kOrderAccepted, kOrderPreparing])
-        .count()
+  /// Orders the stall is still working through — drives "ready in about N
+  /// min". Students can't read other people's orders, so the stall's app
+  /// publishes this count on its queue counter ([publishActiveCount]); null
+  /// when it never has.
+  Future<int?> ordersAhead(String vendorId) async {
+    final snap =
+        await _db.collection(kColCounters).doc('vendor_$vendorId').get();
+    return (snap.data()?['active'] as num?)?.toInt();
+  }
+
+  /// Orders a stall counts as "in the queue" for wait estimates.
+  static bool isInQueue(Order o) =>
+      o.status == kOrderProofSubmitted ||
+      o.status == kOrderAccepted ||
+      o.status == kOrderPreparing;
+
+  /// Called by the stall's app whenever its live queue changes.
+  Future<void> publishActiveCount(String vendorId, int active) =>
+      _db.collection(kColCounters).doc('vendor_$vendorId').set({
+        'active': active,
+        'activeAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+  /// Older orders for "Load more": [field] == [value] (or every order when
+  /// [field] is null, admin), created before [before], newest first.
+  Future<List<Order>> olderOrders({
+    String? field,
+    String? value,
+    required DateTime before,
+    int limit = 50,
+  }) async {
+    Query<Map<String, dynamic>> q = _db.collection(kColOrders);
+    if (field != null) q = q.where(field, isEqualTo: value);
+    final snap = await q
+        .orderBy('createdAt', descending: true)
+        .startAfter([Timestamp.fromDate(before)])
+        .limit(limit)
         .get();
-    return agg.count ?? 0;
+    return snap.docs.map((d) => Order.fromMap(d.id, d.data())).toList();
+  }
+
+  /// Admin: every order since [start] (single-field range, no index).
+  Future<List<Order>> listOrdersSince(DateTime start) async {
+    final snap = await _db
+        .collection(kColOrders)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .get();
+    return snap.docs.map((d) => Order.fromMap(d.id, d.data())).toList();
   }
 
   /// One-time read of every order a stall has received (reports).
@@ -703,17 +740,30 @@ class Repository {
     await _db.collection(kColOrders).doc(orderId).update(patch);
   }
 
+  /// Cancels an order (student, or the stall with a [reason]). A GCash order
+  /// cancelled after the student sent money is flagged refund-owed.
   Future<void> cancelOrder(String orderId, {String? reason}) async {
     await _endOrderReleasingStock(orderId, {
       'status': kOrderCancelled,
       if (reason != null) 'rejectReason': reason,
-    });
+    }, owesRefund: (o) =>
+        o.isPaidFlow &&
+        (o.status == kOrderProofSubmitted || o.paymentStatus == 'paid'));
   }
+
+  Future<void> markRefunded(String orderId) =>
+      _db.collection(kColOrders).doc(orderId).update({
+        'refundStatus': 'refunded',
+        'refundedAt': FieldValue.serverTimestamp(),
+      });
 
   /// Applies [patch] (a cancel/reject) and puts stock-tracked quantities back
   /// on their products, atomically and at most once per order.
   Future<void> _endOrderReleasingStock(
-      String orderId, Map<String, dynamic> patch) async {
+    String orderId,
+    Map<String, dynamic> patch, {
+    bool Function(Order before)? owesRefund,
+  }) async {
     final orderRef = _db.collection(kColOrders).doc(orderId);
     final snap = await orderRef.get();
     if (!snap.exists) throw Exception('Order not found');
@@ -731,7 +781,11 @@ class Repository {
         );
       }
     }
-    batch.update(orderRef, {...patch, 'stockReleased': true});
+    batch.update(orderRef, {
+      ...patch,
+      'stockReleased': true,
+      if (owesRefund?.call(order) ?? false) 'refundStatus': 'owed',
+    });
     await batch.commit();
   }
 
@@ -757,6 +811,45 @@ class Repository {
         .compareTo(a.createdAt ?? DateTime(2000)));
     return list.take(limit).toList();
   }
+
+  Future<void> replyToReview(String reviewId, String reply) =>
+      _db.collection(kColReviews).doc(reviewId).update({
+        'reply': reply.trim().isEmpty ? null : reply.trim(),
+        'repliedAt': FieldValue.serverTimestamp(),
+      });
+
+  /// Admin: removes a review and takes it back out of the stall's average.
+  Future<void> deleteReview(Review r) async {
+    final batch = _db.batch();
+    batch.delete(_db.collection(kColReviews).doc(r.id));
+    batch.update(_db.collection(kColVendors).doc(r.vendorId), {
+      'ratingSum': FieldValue.increment(-r.rating),
+      'ratingCount': FieldValue.increment(-1),
+    });
+    await batch.commit();
+  }
+
+  // =========================================================================
+  // ANNOUNCEMENT (settings/announcement)
+  // =========================================================================
+
+  Stream<Announcement> streamAnnouncement() => _db
+      .collection(kColSettings)
+      .doc(kSettingsDocAnnouncement)
+      .snapshots()
+      .map((s) => Announcement.fromMap(s.data()));
+
+  Future<void> setAnnouncement({
+    required String message,
+    required bool active,
+    required String level,
+  }) =>
+      _db.collection(kColSettings).doc(kSettingsDocAnnouncement).set({
+        'message': message.trim(),
+        'active': active,
+        'level': level,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
   /// Saves the review and bumps the stall's rating aggregates in one batch.
   Future<void> submitReview({

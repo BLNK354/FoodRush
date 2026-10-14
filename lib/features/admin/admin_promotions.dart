@@ -77,7 +77,7 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
           const SizedBox(height: 24),
           SectionHeader('Stall-owned (read-only)'),
           if (vendor.isEmpty)
-            const Text('Stalls haven\'t created their own promos yet.',
+            Text('Stalls haven\'t created their own promos yet.',
                 style: TextStyle(color: FrColors.muted))
           else
             ...vendor.map((p) => Card(
@@ -127,7 +127,7 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
               onChanged: (_) => _toggle(p),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   size: 20, color: FrColors.danger),
               onPressed: () => _delete(p),
             ),

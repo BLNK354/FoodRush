@@ -86,7 +86,7 @@ class _VendorPromotionsScreenState extends ConsumerState<VendorPromotionsScreen>
           const SizedBox(height: 24),
           SectionHeader('FoodRush-wide codes'),
           if (platform.isEmpty)
-            const Text('No platform-wide promos right now.',
+            Text('No platform-wide promos right now.',
                 style: TextStyle(color: FrColors.muted))
           else
             ...platform.map((p) => Card(
@@ -140,7 +140,7 @@ class _VendorPromotionsScreenState extends ConsumerState<VendorPromotionsScreen>
               onPressed: () => _editPromo(p),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   size: 20, color: FrColors.danger),
               onPressed: () => _delete(p),
             ),

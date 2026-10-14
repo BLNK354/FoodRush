@@ -82,6 +82,11 @@ Use three browser profiles (or one normal + one incognito window each):
   Firestore rules (`users` create rejects non-campus customer emails).
 - Realtime is native to Firestore: vendor order queue, customer tracking,
   and admin order list all update live without any extra setup.
+- Privacy: orders are readable only by their student, the stall that
+  received them and admins; user profiles only by their owner and admins.
+- Rules tests: `cd firebase/tests && npm install && npm test` runs
+  `rules.test.mjs` against the local emulator (needs Java 21+; never touches
+  the real project).
 - Composite indexes: only the two order-list indexes above. Everything
   else is equality-only and sorted client-side.
 - Alerts ("order ready", "new order") are browser notifications raised

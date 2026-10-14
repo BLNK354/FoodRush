@@ -6,11 +6,58 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../models/misc.dart';
 import '../../models/order.dart';
+import '../../models/product.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
 import '../../shared/order_alerts.dart';
 import '../../shared/widgets.dart';
+
+/// Public reply to a review; pops with the text (empty = remove the reply).
+class _ReplyDialog extends StatefulWidget {
+  final String initial;
+  const _ReplyDialog({required this.initial});
+
+  @override
+  State<_ReplyDialog> createState() => _ReplyDialogState();
+}
+
+class _ReplyDialogState extends State<_ReplyDialog> {
+  late final _text = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Reply to review'),
+      content: SizedBox(
+        width: 400,
+        child: TextField(
+          controller: _text,
+          autofocus: true,
+          maxLines: 3,
+          maxLength: 300,
+          decoration: const InputDecoration(
+              hintText: 'Shown publicly under the review'),
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, _text.text),
+            child: const Text('Post reply')),
+      ],
+    );
+  }
+}
 
 class VendorDashboard extends ConsumerStatefulWidget {
   const VendorDashboard({super.key});
@@ -23,6 +70,8 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
   Vendor? _vendor;
   Map<String, dynamic>? _stats;
   List<Order> _activeOrders = [];
+  List<Product> _lowStock = [];
+  List<Review> _reviews = [];
   bool _loading = true;
   bool _toggling = false;
   String? _error;
@@ -53,10 +102,25 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
         return;
       }
       final stats = await Repository.instance.vendorStats(vendor.id);
+      // Extras: the dashboard still works if either fails.
+      final products = await Repository.instance
+          .listProducts(vendor.id)
+          .catchError((Object _) => <Product>[]);
+      final reviews = await Repository.instance
+          .listVendorReviews(vendor.id, limit: 5)
+          .catchError((Object _) => <Review>[]);
       if (!mounted) return;
       setState(() {
         _vendor = vendor;
         _stats = stats;
+        _lowStock = products
+            .where((p) =>
+                p.isAvailable &&
+                p.stockQty != null &&
+                p.stockQty! <= kLowStockThreshold)
+            .toList()
+          ..sort((a, b) => a.stockQty!.compareTo(b.stockQty!));
+        _reviews = reviews;
         _loading = false;
         _error = null;
       });
@@ -157,7 +221,7 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
               color: FrColors.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(FrRadius.md),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.hourglass_top, color: FrColors.warning),
                 SizedBox(width: 10),
@@ -235,9 +299,109 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
                   ),
                 ),
               ),
+        if (_lowStock.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SectionHeader(
+            'Running low',
+            trailing: TextButton(
+              onPressed: () => context.go('/vendor/menu'),
+              child: const Text('Restock'),
+            ),
+          ),
+          Card(
+            child: Column(
+              children: [
+                for (final p in _lowStock)
+                  ListTile(
+                    dense: true,
+                    leading: Icon(Icons.inventory_2_outlined,
+                        color: FrColors.danger),
+                    title: Text(p.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    trailing: Text(
+                      p.stockQty == 0 ? 'Sold out' : '${p.stockQty} left',
+                      style: TextStyle(
+                          color: FrColors.danger, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        const SectionHeader('Recent reviews'),
+        if (_reviews.isEmpty)
+          Text('No reviews yet. Students can rate you after pickup.',
+              style: TextStyle(color: FrColors.muted))
+        else
+          for (final r in _reviews) _reviewTile(r),
         const SizedBox(height: 40),
       ],
     );
+  }
+
+  Widget _reviewTile(Review r) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                for (var i = 1; i <= 5; i++)
+                  Icon(
+                    i <= r.rating
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    size: 18,
+                    color: FrColors.warning,
+                  ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    r.customerName?.isNotEmpty == true
+                        ? r.customerName!
+                        : 'Student',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _reply(r),
+                  child: Text(r.reply == null ? 'Reply' : 'Edit reply'),
+                ),
+              ],
+            ),
+            if (r.comment != null) Text(r.comment!),
+            if (r.reply != null) ...[
+              const SizedBox(height: 6),
+              Text('Your reply: ${r.reply}',
+                  style: TextStyle(color: FrColors.muted, fontSize: 13)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reply(Review r) async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _ReplyDialog(initial: r.reply ?? ''),
+    );
+    if (text == null) return;
+    try {
+      await Repository.instance.replyToReview(r.id, text);
+      final reviews =
+          await Repository.instance.listVendorReviews(_vendor!.id, limit: 5);
+      if (!mounted) return;
+      setState(() => _reviews = reviews);
+      showSnack(context, text.trim().isEmpty ? 'Reply removed.' : 'Reply posted.');
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not save reply: $e', error: true);
+    }
   }
 
   /// What students see right now, plus rating and alert opt-in.

@@ -8,6 +8,7 @@ import 'core/firebase_options.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'providers/auth_controller.dart';
+import 'providers/theme_mode.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,15 +45,65 @@ Future<void> main() async {
   runApp(const ProviderScope(child: FoodRushApp()));
 }
 
-/// Built once: a fresh ThemeData per build makes MaterialApp's AnimatedTheme
-/// see a "new" theme and lerp between identical values.
-final ThemeData _theme = buildFrTheme();
+/// One cached ThemeData per mode: a fresh instance per build makes
+/// MaterialApp see a "new" theme every frame.
+final Map<bool, ThemeData> _themes = {};
 
-class FoodRushApp extends ConsumerWidget {
+class FoodRushApp extends ConsumerStatefulWidget {
   const FoodRushApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FoodRushApp> createState() => _FoodRushAppState();
+}
+
+class _FoodRushAppState extends ConsumerState<FoodRushApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // "System" mode follows the device switching light/dark while open.
+  @override
+  void didChangePlatformBrightness() => setState(() {});
+
+  bool _resolveDark(ThemeMode mode) => switch (mode) {
+        ThemeMode.dark => true,
+        ThemeMode.light => false,
+        ThemeMode.system =>
+          WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+              Brightness.dark,
+      };
+
+  /// FrColors' neutrals are read directly by widgets, not through Theme, so
+  /// a mode flip must rebuild every element, not just Theme dependents.
+  void _rebuildEverything() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      void mark(Element e) {
+        e.markNeedsBuild();
+        e.visitChildren(mark);
+      }
+
+      (context as Element).visitChildren(mark);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = _resolveDark(ref.watch(themeModeProvider));
+    if (dark != FrColors.dark) {
+      FrColors.dark = dark;
+      _rebuildEverything();
+    }
+    final theme = _themes.putIfAbsent(dark, buildFrTheme);
     final router = ref.watch(routerProvider);
     final loading =
         ref.watch(authControllerProvider.select((a) => a.loading));
@@ -64,7 +115,10 @@ class FoodRushApp extends ConsumerWidget {
     return MaterialApp.router(
       title: kAppName,
       debugShowCheckedModeBanner: false,
-      theme: _theme,
+      theme: theme,
+      // Switch instantly: lerping between the two themes runs the
+      // TextStyle.lerp path that has crashed this app before.
+      themeAnimationDuration: Duration.zero,
       routerConfig: router,
       builder: (context, child) => loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))

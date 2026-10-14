@@ -13,6 +13,10 @@ class Review {
   final DateTime? createdAt;
   final String? customerName; // denormalized
 
+  /// The stall's public reply, if any.
+  final String? reply;
+  final DateTime? repliedAt;
+
   const Review({
     required this.id,
     required this.orderId,
@@ -22,6 +26,8 @@ class Review {
     this.comment,
     this.createdAt,
     this.customerName,
+    this.reply,
+    this.repliedAt,
   });
 
   factory Review.fromMap(String id, Map<String, dynamic> m) => Review(
@@ -33,6 +39,34 @@ class Review {
         comment: m['comment'] as String?,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
         customerName: m['customerName'] as String?,
+        reply: m['reply'] as String?,
+        repliedAt: (m['repliedAt'] as Timestamp?)?.toDate(),
+      );
+}
+
+// ---------------------------------------------------------------------------
+// Announcement (Firestore: settings/announcement) — admin banner for everyone
+// ---------------------------------------------------------------------------
+class Announcement {
+  final String message;
+  final bool active;
+  final String level; // info | warning
+  final DateTime? updatedAt;
+
+  const Announcement({
+    required this.message,
+    this.active = false,
+    this.level = 'info',
+    this.updatedAt,
+  });
+
+  bool get visible => active && message.trim().isNotEmpty;
+
+  factory Announcement.fromMap(Map<String, dynamic>? m) => Announcement(
+        message: (m?['message'] ?? '') as String,
+        active: m?['active'] == true,
+        level: (m?['level'] ?? 'info') as String,
+        updatedAt: (m?['updatedAt'] as Timestamp?)?.toDate(),
       );
 }
 

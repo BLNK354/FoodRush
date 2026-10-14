@@ -197,7 +197,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     color: FrColors.info.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(FrRadius.md),
                   ),
-                  child: const Icon(Icons.takeout_dining,
+                  child: Icon(Icons.takeout_dining,
                       color: FrColors.info),
                 ),
                 const SizedBox(width: 14),
@@ -210,7 +210,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       const SizedBox(height: 2),
                       Text(
                         _pickupPoint ?? kDefaultPickupNote,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.muted, fontSize: 13),
                       ),
                     ],
@@ -295,7 +295,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(_promoError!,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.danger, fontSize: 12.5)),
                   ),
                 const SizedBox(height: 16),
@@ -363,7 +363,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
             if (slots.isEmpty) ...[
               const SizedBox(height: 8),
-              const Text('No later slots today. The stall closes soon.',
+              Text('No later slots today. The stall closes soon.',
                   style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
             ],
           ],

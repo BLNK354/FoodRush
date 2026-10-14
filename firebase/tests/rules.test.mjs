@@ -1,0 +1,177 @@
+// Firestore security-rules tests for FoodRush.
+//
+//   cd firebase/tests && npm install && npm test
+//
+// Runs against the local emulator (needs Java 21+), never the real project.
+import { after, before, beforeEach, describe, test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import {
+  assertFails,
+  assertSucceeds,
+  initializeTestEnvironment,
+} from '@firebase/rules-unit-testing';
+import {
+  collection, doc, getDoc, getDocs, increment, query, setDoc, Timestamp,
+  updateDoc, where, writeBatch,
+} from 'firebase/firestore';
+
+let env;
+const db = (uid) => (uid ? env.authenticatedContext(uid) : env.unauthenticatedContext()).firestore();
+const student = () => db('student1');
+const otherStudent = () => db('student2');
+const owner = () => db('owner1');
+const otherOwner = () => db('owner2');
+const admin = () => db('admin1');
+
+const yesterday = Timestamp.fromDate(new Date(Date.now() - 86400000));
+const today = Timestamp.fromDate(new Date());
+
+function order(overrides = {}) {
+  return {
+    customerId: 'student1', vendorId: 'v1', vendorName: 'Kusina',
+    status: 'accepted', paymentMethod: 'cash', paymentStatus: 'paid',
+    items: [{ productId: 'adobo', name: 'Adobo', unitPrice: 50, qty: 2, lineTotal: 100 }],
+    subtotal: 100, discount: 0, total: 100, receiptUrl: null,
+    ...overrides,
+  };
+}
+
+before(async () => {
+  env = await initializeTestEnvironment({
+    projectId: 'demo-foodrush',
+    firestore: { rules: readFileSync('../firestore.rules', 'utf8') },
+  });
+});
+after(() => env.cleanup());
+
+beforeEach(async () => {
+  await env.clearFirestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const f = ctx.firestore();
+    const users = {
+      student1: { role: 'customer', email: 's1@lpunetwork.edu.ph', isActive: true },
+      student2: { role: 'customer', email: 's2@lpunetwork.edu.ph', isActive: true },
+      owner1: { role: 'vendor', email: 'o1@x.com', isActive: true },
+      owner2: { role: 'vendor', email: 'o2@x.com', isActive: true },
+      admin1: { role: 'admin', email: 'a@x.com', isActive: true },
+      banned: { role: 'customer', email: 'b@lpunetwork.edu.ph', isActive: false },
+    };
+    for (const [id, u] of Object.entries(users)) await setDoc(doc(f, 'users', id), u);
+    await setDoc(doc(f, 'vendors/v1'), { ownerId: 'owner1', name: 'Kusina', isVerified: true, isOpen: true, ratingSum: 8, ratingCount: 2 });
+    await setDoc(doc(f, 'vendors/v2'), { ownerId: 'owner2', name: 'Other', isVerified: true, isOpen: true });
+    await setDoc(doc(f, 'vendors/v1/products/adobo'), { name: 'Adobo', price: 50, stockQty: 5, isAvailable: true });
+    await setDoc(doc(f, 'orders/o1'), order());
+    await setDoc(doc(f, 'orders/o2'), order({ customerId: 'student2', vendorId: 'v2' }));
+    await setDoc(doc(f, 'orders/done1'), order({ status: 'completed' }));
+    await setDoc(doc(f, 'counters/vendor_v1'), { count: 4, day: today });
+  });
+});
+
+describe('user profiles', () => {
+  test('a student reads their own profile', () => assertSucceeds(getDoc(doc(student(), 'users/student1'))));
+  test('...but not someone else\'s', () => assertFails(getDoc(doc(student(), 'users/student2'))));
+  test('admins read any profile', () => assertSucceeds(getDoc(doc(admin(), 'users/student2'))));
+  test('a deactivated user can still read their own flag', () => assertSucceeds(getDoc(doc(db('banned'), 'users/banned'))));
+});
+
+describe('orders: privacy', () => {
+  test('a student reads their own order', () => assertSucceeds(getDoc(doc(student(), 'orders/o1'))));
+  test('...but not another student\'s', () => assertFails(getDoc(doc(student(), 'orders/o2'))));
+  test('a student lists their own orders', () =>
+    assertSucceeds(getDocs(query(collection(student(), 'orders'), where('customerId', '==', 'student1')))));
+  test('a student cannot list every order', () => assertFails(getDocs(collection(student(), 'orders'))));
+  test('a stall reads its own orders', () => assertSucceeds(getDoc(doc(owner(), 'orders/o1'))));
+  test('...but not another stall\'s', () => assertFails(getDoc(doc(otherOwner(), 'orders/o1'))));
+  test('a stall lists its orders by vendorId', () =>
+    assertSucceeds(getDocs(query(collection(owner(), 'orders'), where('vendorId', '==', 'v1')))));
+  test('a stall cannot list another stall\'s orders', () =>
+    assertFails(getDocs(query(collection(owner(), 'orders'), where('vendorId', '==', 'v2')))));
+  test('admins list everything', () => assertSucceeds(getDocs(collection(admin(), 'orders'))));
+});
+
+describe('orders: tampering on create', () => {
+  const create = (o) => setDoc(doc(student(), 'orders/new'), o);
+  test('a consistent order is accepted', () => assertSucceeds(create(order())));
+  test('a total that does not add up is refused', () => assertFails(create(order({ total: 0 }))));
+  test('a discount bigger than the subtotal is refused', () => assertFails(create(order({ discount: 150, total: -50 }))));
+  test('placing an order for someone else is refused', () => assertFails(create(order({ customerId: 'student2' }))));
+  test('a GCash order cannot start as accepted', () => assertFails(create(order({ paymentMethod: 'gcash' }))));
+  test('an empty order is refused', () => assertFails(create(order({ items: [] }))));
+  test('a deactivated account cannot order', () =>
+    assertFails(setDoc(doc(db('banned'), 'orders/new'), order({ customerId: 'banned' }))));
+});
+
+describe('orders: refunds', () => {
+  beforeEach(() => env.withSecurityRulesDisabled((ctx) =>
+    updateDoc(doc(ctx.firestore(), 'orders/o1'), { status: 'proof_submitted', paymentMethod: 'gcash' })));
+  test('a student cancelling a paid order may flag the refund owed', () =>
+    assertSucceeds(updateDoc(doc(student(), 'orders/o1'), { status: 'cancelled', refundStatus: 'owed' })));
+  test('...but never mark it refunded', () =>
+    assertFails(updateDoc(doc(student(), 'orders/o1'), { status: 'cancelled', refundStatus: 'refunded' })));
+  test('the stall marks it refunded', () =>
+    assertSucceeds(updateDoc(doc(owner(), 'orders/o1'), { refundStatus: 'refunded' })));
+});
+
+describe('products: stock', () => {
+  const adobo = (f) => doc(f, 'vendors/v1/products/adobo');
+  test('checkout may lower stock', () => assertSucceeds(updateDoc(adobo(student()), { stockQty: 3 })));
+  test('...never below zero', () => assertFails(updateDoc(adobo(student()), { stockQty: -1 })));
+  test('a student cannot change the price', () => assertFails(updateDoc(adobo(student()), { price: 1 })));
+  test('the owner changes the price', () => assertSucceeds(updateDoc(adobo(owner()), { price: 55 })));
+});
+
+describe('queue counters', () => {
+  const counter = (f) => doc(f, 'counters/vendor_v1');
+  test('placing an order bumps the number by one', () => assertSucceeds(setDoc(counter(student()), { count: 5, day: today })));
+  test('jumping the number is refused', () => assertFails(setDoc(counter(student()), { count: 9, day: today })));
+  test('resetting mid-day is refused', () => assertFails(setDoc(counter(student()), { count: 1, day: today })));
+  test('a new day restarts at 1', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { count: 40, day: yesterday }));
+    await assertSucceeds(setDoc(counter(student()), { count: 1, day: today }));
+  });
+  test('the stall publishes its queue size', () =>
+    assertSucceeds(setDoc(counter(owner()), { active: 3 }, { merge: true })));
+  test('a student cannot fake the queue size', () =>
+    assertFails(setDoc(counter(student()), { active: 0 }, { merge: true })));
+  test('another stall cannot either', () =>
+    assertFails(setDoc(counter(otherOwner()), { active: 0 }, { merge: true })));
+});
+
+describe('reviews', () => {
+  const review = (orderId, rating = 5) => ({
+    orderId, customerId: 'student1', vendorId: 'v1', rating, comment: 'Sarap', customerName: 'Ana',
+  });
+  test('rate a completed order, bumping the average in the same batch', async () => {
+    const f = student();
+    const b = writeBatch(f);
+    b.set(doc(f, 'reviews/done1'), review('done1', 4));
+    b.update(doc(f, 'vendors/v1'), { ratingSum: increment(4), ratingCount: increment(1) });
+    await assertSucceeds(b.commit());
+  });
+  test('an order not picked up yet cannot be rated', () =>
+    assertFails(setDoc(doc(student(), 'reviews/o1'), review('o1'))));
+  test('6 stars is refused', () => assertFails(setDoc(doc(student(), 'reviews/done1'), review('done1', 6))));
+  test('someone else cannot rate my order', () =>
+    assertFails(setDoc(doc(otherStudent(), 'reviews/done1'), { ...review('done1'), customerId: 'student2' })));
+  test('the rating aggregates only move by one review', () =>
+    assertFails(updateDoc(doc(student(), 'vendors/v1'), { ratingSum: increment(50), ratingCount: increment(1) })));
+  test('the owner cannot edit their own rating', () =>
+    assertFails(updateDoc(doc(owner(), 'vendors/v1'), { ratingSum: 50 })));
+
+  describe('replies', () => {
+    beforeEach(() => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'reviews/done1'), review('done1'))));
+    test('the stall replies', () => assertSucceeds(updateDoc(doc(owner(), 'reviews/done1'), { reply: 'Salamat!' })));
+    test('...but cannot change the stars', () => assertFails(updateDoc(doc(owner(), 'reviews/done1'), { rating: 5, reply: 'x' })));
+    test('another stall cannot reply', () => assertFails(updateDoc(doc(otherOwner(), 'reviews/done1'), { reply: 'x' })));
+  });
+});
+
+describe('announcements', () => {
+  const ann = (f) => doc(f, 'settings/announcement');
+  test('admins publish', () => assertSucceeds(setDoc(ann(admin()), { message: 'Closed Friday', active: true })));
+  test('students cannot', () => assertFails(setDoc(ann(student()), { message: 'Free food!', active: true })));
+  test('everyone signed in reads it', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(ann(ctx.firestore()), { message: 'Hi', active: true }));
+    await assertSucceeds(getDoc(ann(student())));
+  });
+});

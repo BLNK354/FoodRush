@@ -24,3 +24,6 @@ Thumbs.db
 
 # Freebuff workspace (local logs, preview scripts, e2e harnesses)
 .freebuff/
+
+# Rules-test dependencies
+node_modules/

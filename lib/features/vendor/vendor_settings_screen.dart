@@ -210,7 +210,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                         }),
                       ),
                       if (_hours[day] == null)
-                        const Text('Closed',
+                        Text('Closed',
                             style: TextStyle(color: FrColors.muted))
                       else
                         Expanded(
@@ -279,7 +279,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
               ? Image.memory(_newLogo!, fit: BoxFit.cover)
               : saved != null
                   ? FrImage(saved)
-                  : const Icon(Icons.storefront,
+                  : Icon(Icons.storefront,
                       color: FrColors.muted, size: 32),
         ),
         const SizedBox(width: 16),
@@ -306,7 +306,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                   child: const Text('Remove'),
                 ),
               if (_newLogo != null || _removeLogo)
-                const Text('Save settings to apply.',
+                Text('Save settings to apply.',
                     style: TextStyle(color: FrColors.muted, fontSize: 12)),
             ],
           ),
@@ -370,7 +370,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                 Text(
                   'Customers see this when they choose GCash at checkout. '
                   'Leave blank to use the FoodRush platform GCash.',
-                  style: const TextStyle(color: FrColors.muted, fontSize: 13),
+                  style: TextStyle(color: FrColors.muted, fontSize: 13),
                 ),
                 const SizedBox(height: 14),
                 FrTextField(

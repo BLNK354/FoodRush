@@ -2,9 +2,101 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../models/misc.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
 import '../../shared/widgets.dart';
+
+/// Lets an admin remove abusive or fake reviews; deleting also takes the
+/// stars back out of the stall's average.
+class _ReviewsDialog extends StatefulWidget {
+  final Vendor stall;
+  const _ReviewsDialog({required this.stall});
+
+  @override
+  State<_ReviewsDialog> createState() => _ReviewsDialogState();
+}
+
+class _ReviewsDialogState extends State<_ReviewsDialog> {
+  List<Review>? _reviews;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await Repository.instance
+          .listVendorReviews(widget.stall.id, limit: 100);
+      if (mounted) setState(() => _reviews = r);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _reviews = []);
+        showSnack(context, 'Could not load reviews: $e', error: true);
+      }
+    }
+  }
+
+  Future<void> _delete(Review r) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Delete this review?',
+      message: 'It disappears from the stall page and its '
+          '${r.rating} star${r.rating == 1 ? '' : 's'} leave the average.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!ok) return;
+    try {
+      await Repository.instance.deleteReview(r);
+      await _load();
+    } catch (e) {
+      if (mounted) showSnack(context, 'Delete failed: $e', error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reviews = _reviews;
+    return AlertDialog(
+      title: Text('Reviews · ${widget.stall.name}'),
+      content: SizedBox(
+        width: 480,
+        child: reviews == null
+            ? const Center(
+                heightFactor: 3, child: CircularProgressIndicator())
+            : reviews.isEmpty
+                ? const Text('No reviews.')
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final r in reviews)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                              '${'★' * r.rating}${'☆' * (5 - r.rating)}  '
+                              '${r.customerName?.isNotEmpty == true ? r.customerName : 'Student'}'),
+                          subtitle: r.comment == null ? null : Text(r.comment!),
+                          trailing: IconButton(
+                            tooltip: 'Delete review',
+                            icon: Icon(Icons.delete_outline,
+                                color: FrColors.danger),
+                            onPressed: () => _delete(r),
+                          ),
+                        ),
+                    ],
+                  ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close')),
+      ],
+    );
+  }
+}
 
 class AdminVendorsScreen extends ConsumerStatefulWidget {
   const AdminVendorsScreen({super.key});
@@ -120,12 +212,12 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
                       Text(
                         'Owner: $owner'
                         '${owner == v.ownerEmail ? '' : ' · ${v.ownerEmail}'}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.muted, fontSize: 12.5),
                       ),
                       if (v.pickupPoint != null)
                         Text('Pickup: ${v.pickupPoint}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: FrColors.muted, fontSize: 12.5)),
                       const SizedBox(height: 6),
                       Wrap(
@@ -134,14 +226,14 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           v.isVerified
-                              ? const StatusChip('Verified',
+                              ? StatusChip('Verified',
                                   color: FrColors.success)
-                              : const StatusChip('Pending',
+                              : StatusChip('Pending',
                                   color: FrColors.warning),
                           v.isOpenNow
-                              ? const StatusChip('Open now',
+                              ? StatusChip('Open now',
                                   color: FrColors.success)
-                              : const StatusChip('Closed',
+                              : StatusChip('Closed',
                                   color: FrColors.muted),
                           RatingBadge(rating: v.rating, count: v.ratingCount),
                         ],
@@ -159,7 +251,7 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
                 if (v.isVerified)
                   TextButton(
                     onPressed: () => _setVerified(v, false),
-                    child: const Text('Revoke',
+                    child: Text('Revoke',
                         style: TextStyle(color: FrColors.danger)),
                   )
                 else
@@ -167,11 +259,23 @@ class _AdminVendorsScreenState extends ConsumerState<AdminVendorsScreen> {
                     onPressed: () => _setVerified(v, true),
                     child: const Text('Verify'),
                   ),
+                if (v.ratingCount > 0)
+                  TextButton.icon(
+                    onPressed: () async {
+                      await showDialog<void>(
+                        context: context,
+                        builder: (_) => _ReviewsDialog(stall: v),
+                      );
+                      if (mounted) _load(); // averages may have changed
+                    },
+                    icon: const Icon(Icons.reviews_outlined),
+                    label: Text('Reviews (${v.ratingCount})'),
+                  ),
                 TextButton.icon(
                   onPressed: () => _delete(v),
-                  icon: const Icon(Icons.delete_outline,
+                  icon: Icon(Icons.delete_outline,
                       color: FrColors.danger),
-                  label: const Text('Delete',
+                  label: Text('Delete',
                       style: TextStyle(color: FrColors.danger)),
                 ),
               ],

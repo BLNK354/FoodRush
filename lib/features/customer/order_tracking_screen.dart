@@ -12,6 +12,7 @@ import '../../models/order.dart';
 import '../../providers/repository.dart';
 import '../../shared/order_alerts.dart';
 import '../../shared/widgets.dart';
+import 'reorder.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -153,7 +154,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                         ),
                         child: Column(
                           children: [
-                            const Text('QUEUE #',
+                            Text('QUEUE #',
                                 style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w800,
@@ -179,7 +180,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(_subline(o),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: FrColors.muted, fontSize: 13)),
                           if (o.isActive) ...[
                             const SizedBox(height: 4),
@@ -255,25 +256,50 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       o.paymentMethod == kPayGcash
                           ? 'Paid via GCash'
                           : 'Cash at pickup',
-                      style: const TextStyle(color: FrColors.muted, fontSize: 13),
+                      style: TextStyle(color: FrColors.muted, fontSize: 13),
                     ),
                   ],
                 ),
                 if (o.rejectReason != null) ...[
                   const SizedBox(height: 8),
                   Text('Reason: ${o.rejectReason}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: FrColors.danger, fontSize: 13)),
+                ],
+                if (o.refundStatus != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    o.refundOwed
+                        ? 'Refund pending: ${o.vendorName ?? 'the stall'} owes '
+                            'you ${peso(o.total)} and will send it back to your GCash.'
+                        : 'Refunded: ${peso(o.total)} was sent back to your GCash.',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: o.refundOwed ? FrColors.warning : FrColors.success),
+                  ),
                 ],
               ],
             ),
           ),
         ),
         const SizedBox(height: 24),
-        OutlinedButton.icon(
-          onPressed: () => context.go('/orders'),
-          icon: const Icon(Icons.arrow_back),
-          label: const Text('All my orders'),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => context.go('/orders'),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('All my orders'),
+            ),
+            if (!o.isActive)
+              FilledButton.icon(
+                onPressed: () => reorder(context, ref, o),
+                icon: const Icon(Icons.replay),
+                label: const Text('Order again'),
+              ),
+          ],
         ),
         const SizedBox(height: 40),
       ],
@@ -417,7 +443,7 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                     color: FrColors.chipGcash.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(FrRadius.md),
                   ),
-                  child: const Icon(Icons.account_balance_wallet,
+                  child: Icon(Icons.account_balance_wallet,
                       color: FrColors.chipGcash),
                 ),
                 const SizedBox(width: 12),
@@ -437,7 +463,7 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
             if (_loadingGcash)
               const Center(child: CircularProgressIndicator())
             else if (number == null || number.isEmpty)
-              const Text(
+              Text(
                 'GCash details are not configured yet. Please pay cash at pickup instead, or contact the stall.',
                 style: TextStyle(color: FrColors.danger),
               )
@@ -453,18 +479,18 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Send exactly this amount to:',
+                    Text('Send exactly this amount to:',
                         style: TextStyle(
                             fontSize: 12.5, color: FrColors.muted)),
                     const SizedBox(height: 6),
                     SelectableText(number,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
                             color: FrColors.chipGcash)),
                     if (name != null && name.isNotEmpty)
                       Text(name,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: FrColors.muted, fontSize: 13)),
                     const SizedBox(height: 4),
                     Text('Amount: ${peso(widget.order.total)}',
@@ -486,7 +512,7 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
               label: const Text('Upload GCash receipt'),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Take a screenshot of your GCash receipt and upload it here. The stall verifies it before preparing your order.',
               style: TextStyle(fontSize: 12, color: FrColors.muted),
               textAlign: TextAlign.center,
@@ -626,14 +652,14 @@ class _Timeline extends StatelessWidget {
     if (order.status == kOrderRejected || order.status == kOrderCancelled) {
       return Row(
         children: [
-          const Icon(Icons.cancel, color: FrColors.danger),
+          Icon(Icons.cancel, color: FrColors.danger),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               order.status == kOrderRejected
                   ? 'This order was rejected by the stall.'
                   : 'This order was cancelled.',
-              style: const TextStyle(
+              style: TextStyle(
                   color: FrColors.danger, fontWeight: FontWeight.w700),
             ),
           ),

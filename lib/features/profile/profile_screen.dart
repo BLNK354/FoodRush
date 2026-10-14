@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
+import '../../providers/theme_mode.dart';
 import '../../shared/widgets.dart';
 
 /// The signed-in user's own account: edit name/phone (and student number for
@@ -179,7 +180,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           Text(
                             'We\'ll email a secure link to ${profile.email} '
                             'where you can choose a new password.',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: FrColors.muted,
                               fontSize: 13,
                             ),
@@ -197,11 +198,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SectionHeader('Appearance'),
+                          SegmentedButton<ThemeMode>(
+                            segments: const [
+                              ButtonSegment(
+                                  value: ThemeMode.system,
+                                  icon: Icon(Icons.brightness_auto),
+                                  label: Text('System')),
+                              ButtonSegment(
+                                  value: ThemeMode.light,
+                                  icon: Icon(Icons.light_mode_outlined),
+                                  label: Text('Light')),
+                              ButtonSegment(
+                                  value: ThemeMode.dark,
+                                  icon: Icon(Icons.dark_mode_outlined),
+                                  label: Text('Dark')),
+                            ],
+                            selected: {ref.watch(themeModeProvider)},
+                            onSelectionChanged: (s) => ref
+                                .read(themeModeProvider.notifier)
+                                .set(s.first),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   OutlinedButton.icon(
                     onPressed: () =>
                         ref.read(authControllerProvider.notifier).signOut(),
-                    icon: const Icon(Icons.logout, color: FrColors.danger),
-                    label: const Text(
+                    icon: Icon(Icons.logout, color: FrColors.danger),
+                    label: Text(
                       'Sign out',
                       style: TextStyle(color: FrColors.danger),
                     ),

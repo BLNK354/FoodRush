@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/admin/admin_dashboard.dart';
 import '../features/admin/admin_orders.dart';
 import '../features/admin/admin_promotions.dart';
+import '../features/admin/admin_reports.dart';
 import '../features/admin/admin_users.dart';
 import '../features/admin/admin_vendors.dart';
 import '../features/auth/login_screen.dart';
@@ -24,6 +25,7 @@ import '../features/vendor/vendor_reports_screen.dart';
 import '../features/vendor/vendor_settings_screen.dart';
 import '../providers/auth_controller.dart';
 import '../core/constants.dart';
+import '../shared/announcement_banner.dart';
 import '../shared/order_alerts.dart';
 import '../shared/shells.dart';
 
@@ -90,7 +92,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         // OrderAlerts sits inside the shell so it lives as long as the
         // signed-in area does (ShellRoute keeps its State across pages).
         builder: (context, state, child) =>
-            CustomerShell(child: OrderAlerts.customer(child: child)),
+            CustomerShell(
+                child: OrderAlerts.customer(
+                    child: WithAnnouncement(child: child))),
         routes: [
           GoRoute(
             path: '/shop',
@@ -124,7 +128,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ---------------- vendor ----------------
       ShellRoute(
         builder: (context, state, child) =>
-            VendorShell(child: OrderAlerts.vendor(child: child)),
+            VendorShell(
+                child: OrderAlerts.vendor(
+                    child: WithAnnouncement(child: child))),
         routes: [
           GoRoute(
             path: '/vendor',
@@ -155,7 +161,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ---------------- admin ----------------
       ShellRoute(
-        builder: (context, state, child) => AdminShell(child: child),
+        builder: (context, state, child) =>
+            AdminShell(child: WithAnnouncement(child: child)),
         routes: [
           GoRoute(
             path: '/admin',
@@ -176,6 +183,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/promotions',
             builder: (context, state) => const AdminPromotionsScreen(),
+          ),
+          GoRoute(
+            path: '/admin/reports',
+            builder: (context, state) => const AdminReportsScreen(),
           ),
         ],
       ),

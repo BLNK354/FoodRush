@@ -10,3 +10,5 @@ void vibrate() {}
 void setTitleBadge(int count) {}
 void downloadTextFile(String fileName, String content,
     {String mimeType = 'text/plain'}) {}
+String? readPref(String key) => null;
+void writePref(String key, String value) {}

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/order.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
-import '../../shared/browser/browser.dart' as browser;
+import '../../shared/sales_report.dart';
 import '../../shared/widgets.dart';
 
 /// Sales over the last 7 or 30 days: headline tiles, a revenue-per-day bar
@@ -86,7 +85,7 @@ class _VendorReportsScreenState extends ConsumerState<VendorReportsScreen> {
     }
 
     final orders = _inRange;
-    final r = _Report.from(orders, _start, _days);
+    final r = SalesReport.from(orders, _start, _days);
 
     return FrPage(
       title: 'Reports',
@@ -163,10 +162,10 @@ class _VendorReportsScreenState extends ConsumerState<VendorReportsScreen> {
                         TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                 Text(
                   'GCash ${peso(r.gcashRevenue)} · Cash ${peso(r.cashRevenue)}',
-                  style: const TextStyle(color: FrColors.muted, fontSize: 12.5),
+                  style: TextStyle(color: FrColors.muted, fontSize: 12.5),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(height: 200, child: _RevenueChart(days: r.daily)),
+                SizedBox(height: 200, child: RevenueChart(days: r.daily)),
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   title: const Text('Show as table',
@@ -177,12 +176,12 @@ class _VendorReportsScreenState extends ConsumerState<VendorReportsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 3),
                         child: Row(
                           children: [
-                            Expanded(child: Text(_dayLabel(d.day))),
+                            Expanded(child: Text(dayLabel(d.day))),
                             SizedBox(
                               width: 90,
                               child: Text('${d.orders} orders',
                                   textAlign: TextAlign.right,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: FrColors.muted)),
                             ),
                             SizedBox(
@@ -244,202 +243,12 @@ class _VendorReportsScreenState extends ConsumerState<VendorReportsScreen> {
   }
 
   void _exportCsv(List<Order> orders) {
-    String cell(Object? v) {
-      final s = '${v ?? ''}';
-      return s.contains(RegExp(r'[",\n]')) ? '"${s.replaceAll('"', '""')}"' : s;
-    }
-
-    String stamp(DateTime? t) => t == null
-        ? ''
-        : '${t.year}-${_two(t.month)}-${_two(t.day)} ${_two(t.hour)}:${_two(t.minute)}';
-
-    final rows = <List<Object?>>[
-      [
-        'Order', 'Queue', 'Placed', 'Pickup', 'Customer', 'Status', 'Payment',
-        'Items', 'Subtotal', 'Discount', 'Total', 'Promo',
-      ],
-      for (final o in orders)
-        [
-          o.orderNumber,
-          o.queueNumber,
-          stamp(o.createdAt),
-          o.pickupAt == null ? 'ASAP' : stamp(o.pickupAt),
-          o.customerName,
-          kOrderStatusLabels[o.status] ?? o.status,
-          o.paymentMethod,
-          o.items.map((i) => '${i.qty}x ${i.name}').join('; '),
-          o.subtotal.toStringAsFixed(2),
-          o.discount.toStringAsFixed(2),
-          o.total.toStringAsFixed(2),
-          o.promoCode,
-        ],
-    ];
-    final csv = rows.map((r) => r.map(cell).join(',')).join('\r\n');
     final s = _start;
     final name = (_vendor?.name ?? 'stall')
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-');
-    browser.downloadTextFile(
-      'foodrush-$name-${s.year}${_two(s.month)}${_two(s.day)}-${_days}d.csv',
-      // BOM so Excel opens the peso sign / names as UTF-8.
-      '﻿$csv',
-      mimeType: 'text/csv',
-    );
-  }
-}
-
-String _two(int n) => n.toString().padLeft(2, '0');
-
-const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
-String _dayLabel(DateTime d) =>
-    '${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1]} '
-    '${_months[d.month - 1]} ${d.day}';
-
-class _DayTotal {
-  final DateTime day;
-  double revenue = 0;
-  int orders = 0;
-  _DayTotal(this.day);
-}
-
-class _ItemTotal {
-  final String name;
-  int qty = 0;
-  double revenue = 0;
-  _ItemTotal(this.name);
-}
-
-/// Everything the page shows, computed once per build from the range.
-class _Report {
-  double revenue = 0, gcashRevenue = 0, cashRevenue = 0;
-  int completed = 0, lost = 0;
-  final List<_DayTotal> daily;
-  List<_ItemTotal> topItems = [];
-
-  _Report._(this.daily);
-
-  factory _Report.from(List<Order> orders, DateTime start, int days) {
-    final r = _Report._([
-      for (var i = 0; i < days; i++)
-        _DayTotal(DateTime(start.year, start.month, start.day + i)),
-    ]);
-    final items = <String, _ItemTotal>{};
-    for (final o in orders) {
-      if (o.status == kOrderCancelled || o.status == kOrderRejected) {
-        r.lost++;
-        continue;
-      }
-      if (o.status != kOrderCompleted) continue;
-      r.completed++;
-      r.revenue += o.total;
-      if (o.paymentMethod == kPayGcash) {
-        r.gcashRevenue += o.total;
-      } else {
-        r.cashRevenue += o.total;
-      }
-      final c = o.createdAt!;
-      final idx = DateTime(c.year, c.month, c.day)
-          .difference(r.daily.first.day)
-          .inDays;
-      if (idx >= 0 && idx < r.daily.length) {
-        r.daily[idx].revenue += o.total;
-        r.daily[idx].orders++;
-      }
-      for (final it in o.items) {
-        final t = items.putIfAbsent(it.productId, () => _ItemTotal(it.name));
-        t.qty += it.qty;
-        t.revenue += it.lineTotal;
-      }
-    }
-    r.topItems = items.values.toList()
-      ..sort((a, b) => b.qty.compareTo(a.qty));
-    if (r.topItems.length > 10) r.topItems = r.topItems.sublist(0, 10);
-    return r;
-  }
-}
-
-/// Single-series bar chart: thin bars with 4px rounded tops on a baseline,
-/// a recessive max gridline, sparse date labels, and a tooltip per bar
-/// (hover on desktop, long-press on touch).
-class _RevenueChart extends StatelessWidget {
-  final List<_DayTotal> days;
-  const _RevenueChart({required this.days});
-
-  @override
-  Widget build(BuildContext context) {
-    final max = days.fold<double>(0, (m, d) => d.revenue > m ? d.revenue : m);
-    final labelEvery = days.length <= 7 ? 1 : 5;
-    const grid = Color(0x1F000000);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(max == 0 ? 'No completed orders in this range' : peso(max),
-            style: const TextStyle(color: FrColors.muted, fontSize: 11)),
-        const SizedBox(height: 4),
-        Expanded(
-          child: Container(
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: grid),
-                bottom: BorderSide(color: Color(0x40000000)),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final d in days)
-                  Expanded(
-                    child: Tooltip(
-                      message: '${_dayLabel(d.day)}\n${peso(d.revenue)} · '
-                          '${d.orders} order${d.orders == 1 ? '' : 's'}',
-                      // Full-height hit target, wider than the thin bar.
-                      child: Container(
-                        color: Colors.transparent,
-                        alignment: Alignment.bottomCenter,
-                        padding: EdgeInsets.symmetric(
-                            horizontal: days.length <= 7 ? 14 : 2),
-                        child: FractionallySizedBox(
-                          heightFactor: max == 0 ? 0 : d.revenue / max,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: FrColors.primary,
-                              borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(4)),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            for (final (i, d) in days.indexed)
-              Expanded(
-                child: Text(
-                  i % labelEvery == 0 || i == days.length - 1
-                      ? (days.length <= 7
-                          ? _dayLabel(d.day).split(' ').first
-                          : '${d.day.month}/${d.day.day}')
-                      : '',
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.visible,
-                  softWrap: false,
-                  style: const TextStyle(color: FrColors.muted, fontSize: 11),
-                ),
-              ),
-          ],
-        ),
-      ],
-    );
+    downloadOrdersCsv(
+        'foodrush-$name-${s.year}${two2(s.month)}${two2(s.day)}-${_days}d.csv',
+        orders);
   }
 }

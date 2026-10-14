@@ -6,6 +6,127 @@ import '../../core/theme.dart';
 import '../../providers/repository.dart';
 import '../../shared/widgets.dart';
 
+/// Banner shown to everyone signed in (students, stalls, admins).
+class _AnnouncementEditor extends StatefulWidget {
+  const _AnnouncementEditor();
+
+  @override
+  State<_AnnouncementEditor> createState() => _AnnouncementEditorState();
+}
+
+class _AnnouncementEditorState extends State<_AnnouncementEditor> {
+  final _message = TextEditingController();
+  bool _active = false;
+  String _level = 'info';
+  bool _loaded = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Repository.instance.streamAnnouncement().first.then((a) {
+      if (!mounted) return;
+      setState(() {
+        _message.text = a.message;
+        _active = a.active;
+        _level = a.level;
+        _loaded = true;
+      });
+    }, onError: (Object _) {
+      if (mounted) setState(() => _loaded = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save({bool? active}) async {
+    final nextActive = active ?? _active;
+    if (nextActive && _message.text.trim().isEmpty) {
+      showSnack(context, 'Write a message first.', error: true);
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await Repository.instance.setAnnouncement(
+          message: _message.text, active: nextActive, level: _level);
+      if (!mounted) return;
+      setState(() => _active = nextActive);
+      showSnack(context,
+          nextActive ? 'Announcement is live for everyone.' : 'Announcement hidden.');
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not save: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(child: SectionHeader('Announcement')),
+                StatusChip(_active ? 'Live' : 'Hidden',
+                    color: _active ? FrColors.success : FrColors.muted),
+              ],
+            ),
+            Text('Shown as a banner to everyone who is signed in.',
+                style: TextStyle(color: FrColors.muted, fontSize: 13)),
+            const SizedBox(height: 12),
+            FrTextField(
+              controller: _message,
+              label: 'Message',
+              hint: 'e.g. Canteen closed this Friday for the holiday',
+              maxLines: 2,
+              enabled: _loaded,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                        value: 'info',
+                        icon: Icon(Icons.campaign_outlined),
+                        label: Text('Info')),
+                    ButtonSegment(
+                        value: 'warning',
+                        icon: Icon(Icons.warning_amber_rounded),
+                        label: Text('Warning')),
+                  ],
+                  selected: {_level},
+                  onSelectionChanged: (s) => setState(() => _level = s.first),
+                ),
+                FilledButton(
+                  onPressed: !_loaded || _saving ? null : () => _save(active: true),
+                  child: Text(_active ? 'Update' : 'Publish'),
+                ),
+                if (_active)
+                  OutlinedButton(
+                    onPressed: _saving ? null : () => _save(active: false),
+                    child: const Text('Hide'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});
 
@@ -112,7 +233,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           const SizedBox(height: 20),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.pending_actions,
+              leading: Icon(Icons.pending_actions,
                   color: FrColors.warning),
               title: const Text('Stalls waiting for approval',
                   style: TextStyle(fontWeight: FontWeight.w800)),
@@ -129,7 +250,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           const SizedBox(height: 12),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.wallet_giftcard,
+              leading: Icon(Icons.wallet_giftcard,
                   color: FrColors.info),
               title: const Text('Platform GCash not set',
                   style: TextStyle(fontWeight: FontWeight.w800)),
@@ -142,6 +263,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ),
           ),
         ],
+        const SizedBox(height: 20),
+        const _AnnouncementEditor(),
         const SizedBox(height: 40),
       ],
     );

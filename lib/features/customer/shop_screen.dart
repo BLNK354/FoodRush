@@ -227,7 +227,7 @@ class _StallCard extends StatelessWidget {
                             rating: vendor.rating, count: vendor.ratingCount),
                         if (hours != null)
                           Text(hours,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: FrColors.muted, fontSize: 12.5)),
                       ],
                     ),
@@ -237,7 +237,7 @@ class _StallCard extends StatelessWidget {
                         vendor.description!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.muted, fontSize: 13),
                       ),
                     ],
@@ -245,13 +245,13 @@ class _StallCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.place, size: 14, color: FrColors.muted),
+                          Icon(Icons.place, size: 14, color: FrColors.muted),
                           const SizedBox(width: 3),
                           Flexible(
                             child: Text(
                               vendor.pickupPoint!,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: FrColors.muted, fontSize: 12.5),
                             ),
                           ),
