@@ -46,18 +46,47 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
     super.dispose();
   }
 
+  /// Orders beyond the live newest-300, fetched with "Load older".
+  List<Order> _older = [];
+  bool _loadingOlder = false;
+  bool _noMoreOlder = false;
+
+  Future<void> _loadOlder() async {
+    final oldest = [..._orders, ..._older]
+        .map((o) => o.createdAt)
+        .whereType<DateTime>()
+        .fold<DateTime?>(null, (m, d) => m == null || d.isBefore(m) ? d : m);
+    if (oldest == null) return;
+    setState(() => _loadingOlder = true);
+    try {
+      final more = await Repository.instance.olderOrders(before: oldest);
+      if (!mounted) return;
+      setState(() {
+        _older = [..._older, ...more];
+        _noMoreOlder = more.length < 50;
+      });
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not load older orders: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
   List<Order> get _filtered {
+    final all = [..._orders, ..._older];
     switch (_filter) {
       case 'active':
-        return _orders.where((o) => o.isActive).toList();
+        return all.where((o) => o.isActive).toList();
       case 'gcash':
-        return _orders
+        return all
             .where((o) => o.paymentMethod == kPayGcash)
             .toList();
       case 'completed':
-        return _orders.where((o) => o.status == kOrderCompleted).toList();
+        return all.where((o) => o.status == kOrderCompleted).toList();
+      case 'refunds':
+        return all.where((o) => o.refundOwed).toList();
       default:
-        return _orders;
+        return all;
     }
   }
 
@@ -76,12 +105,14 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
       children: [
         Wrap(
           spacing: 8,
+          runSpacing: 8,
           children: [
             for (final f in const [
               ('all', 'All'),
               ('active', 'Active'),
               ('gcash', 'GCash'),
               ('completed', 'Completed'),
+              ('refunds', 'Refunds owed'),
             ])
               ChoiceChip(
                 label: Text(f.$2),
@@ -102,6 +133,14 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
           const EmptyState(icon: Icons.receipt_long_outlined, title: 'No orders')
         else
           ..._filtered.map(_orderTile),
+        if (_orders.length >= 300 && !_noMoreOlder)
+          Center(
+            child: TextButton.icon(
+              onPressed: _loadingOlder ? null : _loadOlder,
+              icon: const Icon(Icons.history),
+              label: Text(_loadingOlder ? 'Loading…' : 'Load older orders'),
+            ),
+          ),
         const SizedBox(height: 40),
       ],
     );
@@ -144,7 +183,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                           '${o.customerName ?? 'Customer'} · '
                           '${o.paymentMethod.toUpperCase()} · '
                           '${_fmt(o.createdAt)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: FrColors.muted, fontSize: 12.5),
                         ),
                         if (o.isActive) ...[
@@ -188,7 +227,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text('Note: ${o.note}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontStyle: FontStyle.italic,
                               color: FrColors.muted,
                               fontSize: 12.5)),

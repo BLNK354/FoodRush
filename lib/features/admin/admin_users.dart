@@ -150,12 +150,12 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                 color: p.role == kRoleAdmin ? FrColors.primary : FrColors.info,
               ),
               p.isActive
-                  ? const StatusChip('Active', color: FrColors.success)
-                  : const StatusChip('Deactivated', color: FrColors.danger),
+                  ? StatusChip('Active', color: FrColors.success)
+                  : StatusChip('Deactivated', color: FrColors.danger),
             ],
           ),
         ),
-        trailing: const Icon(Icons.edit_outlined, color: FrColors.muted),
+        trailing: Icon(Icons.edit_outlined, color: FrColors.muted),
       ),
     );
   }
@@ -259,7 +259,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
             children: [
               Text(
                 widget.profile.email,
-                style: const TextStyle(color: FrColors.muted),
+                style: TextStyle(color: FrColors.muted),
               ),
               const SizedBox(height: 16),
               FrTextField(controller: _fullName, label: 'Full name'),
@@ -296,7 +296,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                   hint: 'Creates an unverified stall',
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Verify the new stall under Stalls afterwards.',
                   style: TextStyle(color: FrColors.muted, fontSize: 12),
                 ),

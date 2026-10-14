@@ -97,12 +97,22 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
               for (final c in _categories)
                 Chip(label: Text(c.name)),
               if (_categories.isEmpty)
-                const Text('No categories — products are fine without them.',
+                Text('No categories — products are fine without them.',
                     style: TextStyle(color: FrColors.muted, fontSize: 13)),
             ],
           ),
           const SizedBox(height: 20),
           SectionHeader('Products (${_products.length})'),
+          if (_lowStockCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                '$_lowStockCount product${_lowStockCount == 1 ? ' is' : 's are'} '
+                'sold out or running low. Restock by editing the stock count.',
+                style: TextStyle(
+                    color: FrColors.danger, fontWeight: FontWeight.w600),
+              ),
+            ),
           if (_products.isEmpty)
             const EmptyState(
               icon: Icons.restaurant_menu,
@@ -117,7 +127,12 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     );
   }
 
+  int get _lowStockCount => _products
+      .where((p) => p.stockQty != null && p.stockQty! <= kLowStockThreshold)
+      .length;
+
   Widget _productTile(Product p) {
+    final stock = p.stockQty;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
@@ -135,11 +150,19 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
         ),
         title: Text(p.name,
             style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(
-          '${peso(p.price)}'
-          '${p.stockQty != null ? ' · ${p.stockQty} in stock' : ''}'
-          '${p.categoryId != null ? ' · ${_catName(p.categoryId)}' : ''}',
-        ),
+        subtitle: Text.rich(TextSpan(children: [
+          TextSpan(text: peso(p.price)),
+          if (stock != null)
+            stock <= kLowStockThreshold
+                ? TextSpan(
+                    text: stock == 0 ? ' · Sold out' : ' · Only $stock left',
+                    style: TextStyle(
+                        color: FrColors.danger, fontWeight: FontWeight.w700),
+                  )
+                : TextSpan(text: ' · $stock in stock'),
+          if (p.categoryId != null)
+            TextSpan(text: ' · ${_catName(p.categoryId)}'),
+        ])),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -161,7 +184,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
               tooltip: 'Edit',
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   size: 20, color: FrColors.danger),
               onPressed: () => _deleteProduct(p),
               tooltip: 'Delete',
@@ -301,7 +324,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                           ? Image.memory(currentImage, fit: BoxFit.cover)
                           : (imageUrl != null
                               ? FrImage(imageUrl)
-                              : const Icon(Icons.image,
+                              : Icon(Icons.image,
                                   color: FrColors.muted)),
                     ),
                     const SizedBox(width: 10),
@@ -398,7 +421,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_categories.isEmpty)
-                const Text('No categories yet.',
+                Text('No categories yet.',
                     style: TextStyle(color: FrColors.muted)),
               for (final c in _categories)
                 ListTile(
@@ -406,7 +429,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(c.name),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline,
+                    icon: Icon(Icons.delete_outline,
                         size: 20, color: FrColors.danger),
                     onPressed: () async {
                       try {

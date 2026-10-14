@@ -69,6 +69,9 @@ class Order {
 
   /// Set once cancelled/rejected stock has been returned (never twice).
   final bool stockReleased;
+
+  /// GCash money to send back: null (none) | owed | refunded.
+  final String? refundStatus;
   final List<OrderItem> items;
 
   const Order({
@@ -96,10 +99,44 @@ class Order {
     this.completedAt,
     this.pickupAt,
     this.stockReleased = false,
+    this.refundStatus,
     this.items = const [],
   });
 
   bool get isPaidFlow => paymentMethod == 'gcash';
+
+  bool get refundOwed => refundStatus == 'owed';
+
+  /// Reasons this order's money doesn't add up. Rules can check that the
+  /// totals are consistent but not that each line matches the menu, so the
+  /// stall re-checks here. [menuPrices] = productId -> current price; a
+  /// missing product is only reported when the map is given.
+  List<String> integrityIssues([Map<String, double>? menuPrices]) {
+    bool off(double a, double b) => (a - b).abs() >= 0.01;
+    final issues = <String>[];
+    var sum = 0.0;
+    for (final it in items) {
+      sum += it.lineTotal;
+      if (it.qty <= 0) issues.add('${it.name}: quantity ${it.qty}');
+      if (off(it.unitPrice * it.qty, it.lineTotal)) {
+        issues.add("${it.name}: line total doesn't match its price");
+      }
+      final menu = menuPrices?[it.productId];
+      if (menuPrices != null && menu == null) {
+        issues.add('${it.name}: not on your menu');
+      } else if (menu != null && off(menu, it.unitPrice)) {
+        issues.add('${it.name}: charged ${it.unitPrice.toStringAsFixed(2)}, '
+            'menu says ${menu.toStringAsFixed(2)}');
+      }
+    }
+    if (off(sum, subtotal)) issues.add("Items don't add up to the subtotal");
+    if (discount < 0 || discount > subtotal) issues.add('Invalid discount');
+    if (discount > 0 && (promoCode == null || promoCode!.isEmpty)) {
+      issues.add('Discount without a promo code');
+    }
+    if (off(total, subtotal - discount)) issues.add("Total doesn't add up");
+    return issues;
+  }
   bool get isActive =>
       status != 'completed' && status != 'rejected' && status != 'cancelled';
 
@@ -128,6 +165,7 @@ class Order {
         completedAt: (m['completedAt'] as Timestamp?)?.toDate(),
         pickupAt: (m['pickupAt'] as Timestamp?)?.toDate(),
         stockReleased: m['stockReleased'] == true,
+        refundStatus: m['refundStatus'] as String?,
         items: ((m['items'] as List<dynamic>? ?? const []))
             .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
             .toList(),

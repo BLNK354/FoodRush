@@ -26,6 +26,19 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
   String? _error;
   List<Review> _reviews = [];
   int? _ordersAhead;
+  String _query = '';
+
+  /// Menu sections narrowed by the search box (empty sections dropped).
+  Map<String, List<Product>> get _visibleSections {
+    if (_query.isEmpty) return _byCategory;
+    bool hit(Product p) =>
+        p.name.toLowerCase().contains(_query) ||
+        (p.description ?? '').toLowerCase().contains(_query);
+    return {
+      for (final e in _byCategory.entries)
+        if (e.value.any(hit)) e.key: e.value.where(hit).toList(),
+    };
+  }
 
   @override
   void initState() {
@@ -200,18 +213,18 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                             if (v.description != null) ...[
                               const SizedBox(height: 4),
                               Text(v.description!,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: FrColors.muted, fontSize: 13.5)),
                             ],
                             if (v.pickupPoint != null) ...[
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  const Icon(Icons.place,
+                                  Icon(Icons.place,
                                       size: 15, color: FrColors.muted),
                                   const SizedBox(width: 4),
                                   Text('Pickup: ${v.pickupPoint}',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           color: FrColors.muted,
                                           fontSize: 13)),
                                 ],
@@ -241,7 +254,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.schedule, color: FrColors.warning),
+                      Icon(Icons.schedule, color: FrColors.warning),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -254,11 +267,29 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                   ),
                 ),
 
+              if (_products.length > 4) ...[
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Search this menu…',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (v) =>
+                      setState(() => _query = v.trim().toLowerCase()),
+                ),
+                const SizedBox(height: 20),
+              ],
+              if (_query.isNotEmpty && _visibleSections.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text('Nothing on this menu matches "$_query".',
+                      style: TextStyle(color: FrColors.muted)),
+                ),
+
               // Sections by category
-              for (final entry in _byCategory.entries) ...[
+              for (final entry in _visibleSections.entries) ...[
                 SectionHeader(entry.key),
                 if (entry.value.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(bottom: 16),
                     child: Text('Nothing here yet.',
                         style: TextStyle(color: FrColors.muted)),
@@ -313,7 +344,7 @@ class _Meta extends StatelessWidget {
           Icon(icon, size: 15, color: FrColors.muted),
           const SizedBox(width: 4),
           Text(text,
-              style: const TextStyle(color: FrColors.muted, fontSize: 13)),
+              style: TextStyle(color: FrColors.muted, fontSize: 13)),
         ],
       );
 }
@@ -330,7 +361,7 @@ class _ReviewsSection extends StatelessWidget {
       children: [
         SectionHeader('Reviews'),
         if (reviews.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(bottom: 16),
             child: Text(
                 'No reviews yet. Students can rate a stall after picking up.',
@@ -367,7 +398,7 @@ class _ReviewsSection extends StatelessWidget {
                         if (r.createdAt != null)
                           Text(
                             '${r.createdAt!.month}/${r.createdAt!.day}/${r.createdAt!.year}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: FrColors.muted, fontSize: 12),
                           ),
                       ],
@@ -375,6 +406,19 @@ class _ReviewsSection extends StatelessWidget {
                     if (r.comment != null) ...[
                       const SizedBox(height: 6),
                       Text(r.comment!),
+                    ],
+                    if (r.reply != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: FrColors.muted.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(FrRadius.sm),
+                        ),
+                        child: Text('Reply from ${vendor.name}: ${r.reply}',
+                            style: const TextStyle(fontSize: 13)),
+                      ),
                     ],
                   ],
                 ),
@@ -429,7 +473,7 @@ class _ProductCard extends StatelessWidget {
                             product.description!,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: FrColors.muted, fontSize: 12.5),
                           ),
                         ],

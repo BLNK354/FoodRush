@@ -48,7 +48,7 @@ class FrPage extends StatelessWidget {
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(subtitle!,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: FrColors.muted, fontSize: 13.5)),
                     ],
                   ],
@@ -130,7 +130,7 @@ class StatCard extends StatelessWidget {
                     label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: FrColors.muted, fontSize: 12.5),
+                    style: TextStyle(color: FrColors.muted, fontSize: 12.5),
                   ),
                 ),
               ],
@@ -178,7 +178,7 @@ class EmptyState extends StatelessWidget {
               Text(
                 message!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: FrColors.muted, fontSize: 13.5),
+                style: TextStyle(color: FrColors.muted, fontSize: 13.5),
               ),
             ],
             if (action != null) ...[const SizedBox(height: 16), action!],
@@ -211,9 +211,9 @@ class StatusChip extends StatelessWidget {
   }
 
   static StatusChip proof(String status) => switch (status) {
-        'pending' => const StatusChip('Pending review', color: FrColors.warning),
-        'verified' => const StatusChip('Verified', color: FrColors.success),
-        'rejected' => const StatusChip('Rejected', color: FrColors.danger),
+        'pending' => StatusChip('Pending review', color: FrColors.warning),
+        'verified' => StatusChip('Verified', color: FrColors.success),
+        'rejected' => StatusChip('Rejected', color: FrColors.danger),
         _ => StatusChip(status, color: FrColors.muted),
       };
 
@@ -283,7 +283,7 @@ class OrderProgressBar extends StatelessWidget {
         Text(
           'Step ${idx + 1} of ${steps.length} · '
           '${kOrderStatusLabels[status] ?? status}',
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 11.5,
               color: FrColors.muted,
               fontWeight: FontWeight.w600),

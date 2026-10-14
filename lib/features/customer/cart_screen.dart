@@ -89,7 +89,7 @@ class CartScreen extends ConsumerWidget {
                     label: const Text('Clear cart'),
                   ),
                   const Spacer(),
-                  const Text('Subtotal',
+                  Text('Subtotal',
                       style: TextStyle(color: FrColors.muted)),
                   const SizedBox(width: 12),
                   Text(peso(subtotal),

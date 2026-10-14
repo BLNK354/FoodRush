@@ -101,3 +101,19 @@ void downloadTextFile(String fileName, String content,
   a.remove();
   web.URL.revokeObjectURL(url);
 }
+
+/// Small per-browser preference (e.g. theme mode). Null when storage is
+/// unavailable (private mode, blocked site data).
+String? readPref(String key) {
+  try {
+    return web.window.localStorage.getItem('foodrush.$key');
+  } catch (_) {
+    return null;
+  }
+}
+
+void writePref(String key, String value) {
+  try {
+    web.window.localStorage.setItem('foodrush.$key', value);
+  } catch (_) {}
+}

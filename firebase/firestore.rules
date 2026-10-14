@@ -4,10 +4,11 @@ rules_version = '2';
 // Paste into Firebase console → Firestore Database → Rules → Publish,
 // or deploy with the Firebase CLI: firebase deploy --only firestore:rules
 //
-// Reads are granted to any signed-in user on purpose: the app is LPU-email
-// gated at signup and Firestore queries (lists, sorts) are evaluated against
-// these rules per-document-set, so per-owner read rules would break client
-// queries without providing real security. All WRITES are tightly scoped.
+// Public-ish data (stalls, menus, promos, reviews) is readable by any
+// signed-in user. Personal data is not: orders are readable by their
+// customer, the stall that received them and admins; user profiles by their
+// owner and admins. Every client query filters on the field these rules
+// check (customerId / vendorId), which is what lets Firestore allow it.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -40,8 +41,10 @@ service cloud.firestore {
 
     // ------------------------------------------------------------ users ----
     match /users/{uid} {
-      // Own doc stays readable when deactivated so the app can see the flag.
-      allow read: if signedIn() || (request.auth != null && uid == request.auth.uid);
+      // Your own profile (even when deactivated, so the app can see the
+      // flag) and admins. Names shown elsewhere are denormalized onto
+      // orders/reviews, so nobody else needs to read profiles.
+      allow read: if (request.auth != null && uid == request.auth.uid) || isAdmin();
       // Roles are set at signup; only the very first account may claim admin
       // (and must immediately write the bootstrap marker to close the window).
       // Customers must use the campus domain.
@@ -102,20 +105,42 @@ service cloud.firestore {
 
     // ----------------------------------------------------------- orders ----
     match /orders/{orderId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (
+        resource.data.customerId == me()
+        || isAdmin()
+        || ownsStall(resource.data.vendorId));
 
-      // Created only through the app's placeOrder transaction.
+      // Created only through the app's placeOrder transaction. The totals must
+      // be internally consistent; whether the line PRICES match the menu
+      // can't be checked here (rules can't loop over items), so the stall's
+      // order screen re-checks them against its live menu.
       allow create: if isCustomer()
         && request.resource.data.customerId == me()
-        && request.resource.data.status in ['awaiting_payment', 'accepted']
-        && request.resource.data.total >= 0;
+        && request.resource.data.paymentMethod in ['gcash', 'cash']
+        && request.resource.data.status
+             == (request.resource.data.paymentMethod == 'cash' ? 'accepted' : 'awaiting_payment')
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.subtotal is number
+        && request.resource.data.subtotal >= 0
+        && request.resource.data.discount is number
+        && request.resource.data.discount >= 0
+        && request.resource.data.discount <= request.resource.data.subtotal
+        && math.abs(request.resource.data.total
+             - (request.resource.data.subtotal - request.resource.data.discount)) < 0.01
+        && request.resource.data.receiptUrl == null
+        && request.resource.data.get('refundStatus', null) == null
+        && get(/databases/$(database)/documents/vendors/$(request.resource.data.vendorId))
+             .data.isVerified == true;
 
       // Customer may cancel an unpaid order, or submit a GCash proof
       // (exactly the four fields submitProof writes, nothing else).
       allow update: if signedIn() && resource.data.customerId == me()
         && (
           (request.resource.data.status == 'cancelled'
-            && resource.data.status in ['awaiting_payment', 'proof_submitted'])
+            && resource.data.status in ['awaiting_payment', 'proof_submitted']
+            // A customer may flag a refund as owed, never as paid out.
+            && request.resource.data.get('refundStatus', null) in [null, 'owed'])
           ||
           (request.resource.data.status == 'proof_submitted'
             && resource.data.status == 'awaiting_payment'
@@ -164,6 +189,10 @@ service cloud.firestore {
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5;
+      // The stall may add/edit its public reply, nothing else.
+      allow update: if ownsStall(resource.data.vendorId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['reply', 'repliedAt']);
       allow delete: if isAdmin();
     }
 
@@ -182,9 +211,32 @@ service cloud.firestore {
 
     // -------------------------------------------------------- counters -----
     // Queue-number counters are written by the client placeOrder transaction.
+    // counters/vendor_{vendorId}: the daily queue number (count/day), bumped
+    // by placeOrder, plus `active` (orders the stall is working through),
+    // published by the stall's own app for students' wait estimates.
     match /counters/{docId} {
+      function ownsCounter() {
+        return docId.matches('vendor_.+')
+          && ownsStall(docId.split('_')[1]);
+      }
+      // Queue numbers only ever go up by one, or restart at 1 on a new day.
+      function nextQueueNumber() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['count', 'day'])
+          && (request.resource.data.count == resource.data.count + 1
+              || (request.resource.data.count == 1
+                  && request.resource.data.day > resource.data.day));
+      }
       allow read: if signedIn();
-      allow write: if signedIn(); // values validated app-side
+      allow create: if signedIn()
+        && (ownsCounter()
+            || (request.resource.data.keys().hasOnly(['count', 'day'])
+                && request.resource.data.count == 1));
+      allow update: if signedIn()
+        && (nextQueueNumber()
+            || (ownsCounter()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['active', 'activeAt'])));
     }
   }
 }
