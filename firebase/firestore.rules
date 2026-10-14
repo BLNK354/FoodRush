@@ -12,7 +12,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() { return request.auth != null; }
+    // Signed in AND not deactivated by an admin. A missing users doc (signup
+    // still in progress) counts as active so the create below can succeed.
+    function signedIn() {
+      return request.auth != null
+        && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            || get(/databases/$(database)/documents/users/$(request.auth.uid))
+                 .data.get('isActive', true) != false);
+    }
     function me() { return request.auth.uid; }
     function myRole() {
       return get(/databases/$(database)/documents/users/$(me())).data.role;
@@ -33,7 +40,8 @@ service cloud.firestore {
 
     // ------------------------------------------------------------ users ----
     match /users/{uid} {
-      allow read: if signedIn();
+      // Own doc stays readable when deactivated so the app can see the flag.
+      allow read: if signedIn() || (request.auth != null && uid == request.auth.uid);
       // Roles are set at signup; only the very first account may claim admin
       // (and must immediately write the bootstrap marker to close the window).
       // Customers must use the campus domain.
@@ -55,8 +63,10 @@ service cloud.firestore {
     match /vendors/{vendorId} {
       allow read: if signedIn();
       // Owner creates their own stall doc (during vendor signup), unverified.
-      allow create: if isVendor() && request.resource.data.ownerId == me()
-                    && request.resource.data.isVerified == false;
+      // Admin may also create one for a user they turn into a stall owner.
+      allow create: if (isVendor() && request.resource.data.ownerId == me()
+                        && request.resource.data.isVerified == false)
+                    || isAdmin();
       // Owner edits everything except verification; admin sets verification.
       allow update: if (signedIn() && resource.data.ownerId == me()
                         && !request.resource.data.diff(resource.data).affectedKeys()

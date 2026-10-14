@@ -165,6 +165,12 @@ class _OrderCard extends ConsumerWidget {
                       style: const TextStyle(
                           color: FrColors.muted, fontSize: 12.5),
                     ),
+                    if (order.isActive) ...[
+                      const SizedBox(height: 10),
+                      OrderProgressBar(
+                          status: order.status,
+                          paymentMethod: order.paymentMethod),
+                    ],
                   ],
                 ),
               ),

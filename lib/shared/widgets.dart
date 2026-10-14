@@ -236,6 +236,62 @@ class StatusChip extends StatelessWidget {
   }
 }
 
+/// Compact segmented progress through the pickup flow, with a
+/// "Step n of m · label" caption. Cash orders skip the receipt step.
+/// Renders nothing for rejected/cancelled orders — the StatusChip says it.
+class OrderProgressBar extends StatelessWidget {
+  final String status;
+  final String paymentMethod;
+  const OrderProgressBar(
+      {super.key, required this.status, required this.paymentMethod});
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = paymentMethod == kPayCash
+        ? kOrderStatusFlow.where((s) => s != kOrderProofSubmitted).toList()
+        : kOrderStatusFlow;
+    final idx = steps.indexOf(status);
+    if (idx < 0) return const SizedBox.shrink();
+    final color = status == kOrderReady || status == kOrderCompleted
+        ? FrColors.success
+        : FrColors.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < steps.length; i++) ...[
+              if (i > 0) const SizedBox(width: 4),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: i <= idx
+                        ? color
+                        : FrColors.muted.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Step ${idx + 1} of ${steps.length} · '
+          '${kOrderStatusLabels[status] ?? status}',
+          style: const TextStyle(
+              fontSize: 11.5,
+              color: FrColors.muted,
+              fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+}
+
 class FrTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;

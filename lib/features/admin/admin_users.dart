@@ -4,8 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/user.dart';
+import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
 import '../../shared/widgets.dart';
+
+String _roleLabel(String role) => switch (role) {
+  kRoleAdmin => 'Admin',
+  kRoleVendor => 'Stall owner',
+  _ => 'Student',
+};
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -18,11 +25,18 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   List<Profile> _profiles = [];
   bool _loading = true;
   String _roleFilter = 'all';
+  final _search = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -41,18 +55,36 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     }
   }
 
-  List<Profile> get _filtered =>
-      _roleFilter == 'all' ? _profiles : _profiles.where((p) => p.role == _roleFilter).toList();
+  List<Profile> get _filtered {
+    final q = _search.text.trim().toLowerCase();
+    return _profiles.where((p) {
+      if (_roleFilter != 'all' && p.role != _roleFilter) return false;
+      if (q.isEmpty) return true;
+      return p.fullName.toLowerCase().contains(q) ||
+          p.email.toLowerCase().contains(q) ||
+          (p.studentNumber?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     return FrPage(
       title: 'Users',
-      subtitle: 'Everyone with a FoodRush account.',
+      subtitle: 'Everyone with a FoodRush account. Tap a user to edit.',
       actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
       children: [
+        TextField(
+          controller: _search,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            hintText: 'Search name, email or student number',
+          ),
+        ),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
+          runSpacing: 8,
           children: [
             for (final f in const [
               ('all', 'All'),
@@ -88,48 +120,226 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
+        onTap: () => _edit(p),
         leading: CircleAvatar(
           backgroundColor: FrColors.primary.withValues(alpha: 0.12),
           child: Text(
             p.fullName.isNotEmpty ? p.fullName[0].toUpperCase() : '?',
             style: const TextStyle(
-                color: FrColors.primary, fontWeight: FontWeight.w800),
+              color: FrColors.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         title: Text(
           p.fullName.isEmpty ? '(no name)' : p.fullName,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        subtitle: Text('${p.email} · ${p.role}'),
-        trailing: p.role == kRoleAdmin
-            ? const Chip(label: Text('Admin'))
-            : SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  p.isActive ? 'Active' : 'Deactivated',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: p.isActive ? FrColors.success : FrColors.danger,
-                  ),
-                ),
-                value: p.isActive,
-                onChanged: (v) => _setActive(p, v),
+        // Chips live in the subtitle: ListTile.trailing is width-constrained,
+        // and the SwitchListTile that used to sit there failed layout.
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(p.email, overflow: TextOverflow.ellipsis),
+              StatusChip(
+                _roleLabel(p.role),
+                color: p.role == kRoleAdmin ? FrColors.primary : FrColors.info,
               ),
+              p.isActive
+                  ? const StatusChip('Active', color: FrColors.success)
+                  : const StatusChip('Deactivated', color: FrColors.danger),
+            ],
+          ),
+        ),
+        trailing: const Icon(Icons.edit_outlined, color: FrColors.muted),
       ),
     );
   }
 
-  Future<void> _setActive(Profile p, bool active) async {
-    try {
-      await Repository.instance.setUserActive(p.id, active);
-      if (!mounted) return;
-      showSnack(context, '${p.fullName.isEmpty ? p.email : p.fullName} '
-          '${active ? 'reactivated' : 'deactivated'}.');
-      await _load();
-    } catch (e) {
-      if (mounted) showSnack(context, 'Update failed: $e', error: true);
+  Future<void> _edit(Profile p) async {
+    final me = ref.read(authControllerProvider).profile?.id;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditUserDialog(profile: p, isSelf: p.id == me),
+    );
+    if (saved == true) await _load();
+  }
+}
+
+class _EditUserDialog extends StatefulWidget {
+  final Profile profile;
+  final bool isSelf;
+  const _EditUserDialog({required this.profile, required this.isSelf});
+
+  @override
+  State<_EditUserDialog> createState() => _EditUserDialogState();
+}
+
+class _EditUserDialogState extends State<_EditUserDialog> {
+  late final _fullName = TextEditingController(text: widget.profile.fullName);
+  late final _phone = TextEditingController(text: widget.profile.phone ?? '');
+  late final _studentNumber = TextEditingController(
+    text: widget.profile.studentNumber ?? '',
+  );
+  final _stallName = TextEditingController();
+  late String _role = widget.profile.role;
+  late bool _active = widget.profile.isActive;
+  bool _saving = false;
+
+  /// Becoming a stall owner needs a stall; asked for only if they have none.
+  bool? _hasStall;
+
+  @override
+  void initState() {
+    super.initState();
+    Repository.instance.userOwnsStall(widget.profile.id).then((v) {
+      if (mounted) setState(() => _hasStall = v);
+    }, onError: (Object _) {});
+  }
+
+  @override
+  void dispose() {
+    _fullName.dispose();
+    _phone.dispose();
+    _studentNumber.dispose();
+    _stallName.dispose();
+    super.dispose();
+  }
+
+  bool get _needsStall => _role == kRoleVendor && _hasStall == false;
+
+  Future<void> _save() async {
+    if (_fullName.text.trim().isEmpty) {
+      showSnack(context, 'Name is required.', error: true);
+      return;
     }
+    if (_needsStall && _stallName.text.trim().isEmpty) {
+      showSnack(
+        context,
+        'Enter a stall name for the new stall owner.',
+        error: true,
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await Repository.instance.adminUpdateUser(
+        widget.profile.id,
+        fullName: _fullName.text,
+        phone: _phone.text,
+        studentNumber: _studentNumber.text,
+        role: _role,
+        isActive: _active,
+        stallName: _needsStall ? _stallName.text : null,
+      );
+      if (!mounted) return;
+      showSnack(context, 'User updated.');
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showSnack(context, 'Update failed: $e', error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit user'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.profile.email,
+                style: const TextStyle(color: FrColors.muted),
+              ),
+              const SizedBox(height: 16),
+              FrTextField(controller: _fullName, label: 'Full name'),
+              const SizedBox(height: 12),
+              FrTextField(
+                controller: _phone,
+                label: 'Mobile number',
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 12),
+              FrTextField(controller: _studentNumber, label: 'Student number'),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _role,
+                decoration: const InputDecoration(labelText: 'Role'),
+                items: [
+                  for (final r in const [
+                    kRoleCustomer,
+                    kRoleVendor,
+                    kRoleAdmin,
+                  ])
+                    DropdownMenuItem(value: r, child: Text(_roleLabel(r))),
+                ],
+                // Admins can't change their own role (would lock them out).
+                onChanged: widget.isSelf || _saving
+                    ? null
+                    : (v) => setState(() => _role = v ?? _role),
+              ),
+              if (_needsStall) ...[
+                const SizedBox(height: 12),
+                FrTextField(
+                  controller: _stallName,
+                  label: 'Stall name',
+                  hint: 'Creates an unverified stall',
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Verify the new stall under Stalls afterwards.',
+                  style: TextStyle(color: FrColors.muted, fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Account active'),
+                subtitle: Text(
+                  widget.isSelf
+                      ? 'You cannot deactivate your own account.'
+                      : _active
+                      ? 'Can sign in and use FoodRush.'
+                      : 'Signed out and blocked from FoodRush.',
+                ),
+                value: _active,
+                onChanged: widget.isSelf || _saving
+                    ? null
+                    : (v) => setState(() => _active = v),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Save'),
+        ),
+      ],
+    );
   }
 }

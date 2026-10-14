@@ -15,6 +15,7 @@ import '../features/customer/order_tracking_screen.dart';
 import '../features/customer/orders_history_screen.dart';
 import '../features/customer/shop_screen.dart';
 import '../features/customer/stall_menu_screen.dart';
+import '../features/profile/profile_screen.dart';
 import '../features/vendor/vendor_dashboard.dart';
 import '../features/vendor/vendor_menu_screen.dart';
 import '../features/vendor/vendor_orders_screen.dart';
@@ -35,6 +36,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     // deep links (/#/admin/users etc.) survive refreshes and cold starts.
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
+      // Cold start: the app shows a splash over the router while the profile
+      // loads. Keep the requested location untouched so deep links survive;
+      // the refresh below re-runs this once auth resolves.
+      if (auth.loading) return null;
       final loggedIn = auth.isAuthenticated;
       final role = auth.role;
       final loc = state.matchedLocation;
@@ -71,6 +76,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      // Every role's own account page (outside the role shells).
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
       ),
 
       // ---------------- customer ----------------

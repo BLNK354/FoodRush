@@ -46,6 +46,11 @@ class CustomerShell extends ConsumerWidget {
           style: const TextStyle(color: FrColors.primary)),
       actions: [
         IconButton(
+          tooltip: 'My profile',
+          icon: const Icon(Icons.account_circle_outlined),
+          onPressed: () => context.go('/profile'),
+        ),
+        IconButton(
           tooltip: 'Sign out',
           icon: const Icon(Icons.logout),
           onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
@@ -112,33 +117,33 @@ class CustomerShell extends ConsumerWidget {
 // Vendor + admin shells — collapsible navigation rail.
 // ---------------------------------------------------------------------------
 
-class _SideDest {
+class SideDest {
   final String path;
   final IconData icon;
   final IconData selectedIcon;
   final String label;
-  const _SideDest(this.path, this.icon, this.selectedIcon, this.label);
+  const SideDest(this.path, this.icon, this.selectedIcon, this.label);
 }
 
 const _vendorDests = [
-  _SideDest('/vendor', Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
-  _SideDest('/vendor/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
-  _SideDest('/vendor/menu', Icons.restaurant_menu_outlined, Icons.restaurant_menu, 'Menu'),
-  _SideDest('/vendor/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
-  _SideDest('/vendor/settings', Icons.settings_outlined, Icons.settings, 'Settings'),
+  SideDest('/vendor', Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
+  SideDest('/vendor/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
+  SideDest('/vendor/menu', Icons.restaurant_menu_outlined, Icons.restaurant_menu, 'Menu'),
+  SideDest('/vendor/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
+  SideDest('/vendor/settings', Icons.settings_outlined, Icons.settings, 'Settings'),
 ];
 
 const _adminDests = [
-  _SideDest('/admin', Icons.dashboard_outlined, Icons.dashboard, 'Overview'),
-  _SideDest('/admin/users', Icons.people_outlined, Icons.people, 'Users'),
-  _SideDest('/admin/vendors', Icons.storefront_outlined, Icons.storefront, 'Stalls'),
-  _SideDest('/admin/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
-  _SideDest('/admin/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
+  SideDest('/admin', Icons.dashboard_outlined, Icons.dashboard, 'Overview'),
+  SideDest('/admin/users', Icons.people_outlined, Icons.people, 'Users'),
+  SideDest('/admin/vendors', Icons.storefront_outlined, Icons.storefront, 'Stalls'),
+  SideDest('/admin/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
+  SideDest('/admin/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
 ];
 
 class StaffShell extends ConsumerWidget {
   final Widget child;
-  final List<_SideDest> dests;
+  final List<SideDest> dests;
   final String title;
 
   const StaffShell({
@@ -173,6 +178,11 @@ class StaffShell extends ConsumerWidget {
         appBar: AppBar(
           title: Text(current),
           actions: [
+            IconButton(
+              tooltip: 'My profile',
+              icon: const Icon(Icons.account_circle_outlined),
+              onPressed: () => context.go('/profile'),
+            ),
             IconButton(
               tooltip: 'Sign out',
               icon: const Icon(Icons.logout),
@@ -217,6 +227,14 @@ class StaffShell extends ConsumerWidget {
                   ),
                 const Divider(),
                 ListTile(
+                  leading: const Icon(Icons.account_circle_outlined),
+                  title: const Text('My profile'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/profile');
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.logout),
                   title: const Text('Sign out'),
                   onTap: () =>
@@ -253,11 +271,22 @@ class StaffShell extends ConsumerWidget {
                 alignment: Alignment.bottomCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: IconButton(
-                    tooltip: 'Sign out',
-                    icon: const Icon(Icons.logout, color: FrColors.muted),
-                    onPressed: () =>
-                        ref.read(authControllerProvider.notifier).signOut(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'My profile',
+                        icon: const Icon(Icons.account_circle_outlined,
+                            color: FrColors.muted),
+                        onPressed: () => context.go('/profile'),
+                      ),
+                      IconButton(
+                        tooltip: 'Sign out',
+                        icon: const Icon(Icons.logout, color: FrColors.muted),
+                        onPressed: () =>
+                            ref.read(authControllerProvider.notifier).signOut(),
+                      ),
+                    ],
                   ),
                 ),
               ),

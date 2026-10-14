@@ -147,6 +147,12 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                           style: const TextStyle(
                               color: FrColors.muted, fontSize: 12.5),
                         ),
+                        if (o.isActive) ...[
+                          const SizedBox(height: 8),
+                          OrderProgressBar(
+                              status: o.status,
+                              paymentMethod: o.paymentMethod),
+                        ],
                       ],
                     ),
                   ),

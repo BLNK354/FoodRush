@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
@@ -25,6 +29,11 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
   final _gcashName = TextEditingController();
   final _pickupPoint = TextEditingController();
   bool _isOpen = false;
+
+  /// Picked but not yet saved logo; [_removeLogo] clears the saved one.
+  Uint8List? _newLogo;
+  String? _newLogoName;
+  bool _removeLogo = false;
 
   @override
   void initState() {
@@ -58,6 +67,9 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         _gcashName.text = vendor.gcashName ?? '';
         _pickupPoint.text = vendor.pickupPoint ?? '';
         _isOpen = vendor.isOpen;
+        _newLogo = null;
+        _newLogoName = null;
+        _removeLogo = false;
         _loading = false;
       });
     } catch (e) {
@@ -74,6 +86,18 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
     }
     setState(() => _saving = true);
     try {
+      String? logoUrl;
+      final logo = _newLogo;
+      if (logo != null) {
+        // Small: every stall's logo is loaded with the shop list.
+        logoUrl = await Repository.instance.uploadImage(
+          pathPrefix: kPathVendorLogos,
+          bytes: logo,
+          fileName: _newLogoName ?? 'logo.png',
+          maxDim: 256,
+          quality: 80,
+        );
+      }
       await Repository.instance.updateMyVendor(
         vendorId: _vendor!.id,
         name: _name.text.trim(),
@@ -82,6 +106,8 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         gcashName: _gcashName.text.trim(),
         pickupPoint: _pickupPoint.text.trim(),
         isOpen: _isOpen,
+        logoUrl: logoUrl,
+        removeLogo: _removeLogo,
       );
       if (!mounted) return;
       showSnack(context, 'Settings saved.');
@@ -91,6 +117,74 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _pickLogo() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    final f = picked?.files.single;
+    final bytes = f?.bytes;
+    if (f == null || bytes == null) return;
+    setState(() {
+      _newLogo = bytes;
+      _newLogoName = f.name;
+      _removeLogo = false;
+    });
+  }
+
+  Widget _logoPicker() {
+    final saved = _removeLogo ? null : _vendor?.logoUrl;
+    final hasLogo = _newLogo != null || saved != null;
+    return Row(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: FrColors.cream,
+            borderRadius: BorderRadius.circular(FrRadius.lg),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _newLogo != null
+              ? Image.memory(_newLogo!, fit: BoxFit.cover)
+              : saved != null
+                  ? FrImage(saved)
+                  : const Icon(Icons.storefront,
+                      color: FrColors.muted, size: 32),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _pickLogo,
+                icon: const Icon(Icons.upload),
+                label: Text(hasLogo ? 'Change logo' : 'Upload logo'),
+              ),
+              if (hasLogo)
+                TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                            _newLogo = null;
+                            _newLogoName = null;
+                            _removeLogo = true;
+                          }),
+                  child: const Text('Remove'),
+                ),
+              if (_newLogo != null || _removeLogo)
+                const Text('Save settings to apply.',
+                    style: TextStyle(color: FrColors.muted, fontSize: 12)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -118,6 +212,8 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SectionHeader('Stall profile'),
+                _logoPicker(),
+                const SizedBox(height: 18),
                 FrTextField(controller: _name, label: 'Stall name'),
                 const SizedBox(height: 14),
                 FrTextField(

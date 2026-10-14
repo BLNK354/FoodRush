@@ -135,3 +135,5 @@ const int kMaxCartQty = 99;
 const String kDefaultPickupNote =
     'Claim at the stall counter. Show your queue number.';
 const String kSettingsDocPlatformGcash = 'platform_gcash';
+const String kDeactivatedNotice =
+    'This account has been deactivated. Contact a FoodRush admin.';
