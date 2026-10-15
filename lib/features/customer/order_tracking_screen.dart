@@ -13,6 +13,7 @@ import '../../models/order.dart';
 import '../../providers/repository.dart';
 import '../../shared/order_alerts.dart';
 import '../../shared/validation.dart';
+import '../../shared/premium.dart';
 import '../../shared/widgets.dart';
 import 'reorder.dart';
 
@@ -20,7 +21,11 @@ class OrderTrackingScreen extends ConsumerStatefulWidget {
   final String orderId;
   final bool isNew;
 
-  const OrderTrackingScreen({super.key, required this.orderId, this.isNew = false});
+  const OrderTrackingScreen({
+    super.key,
+    required this.orderId,
+    this.isNew = false,
+  });
 
   @override
   ConsumerState<OrderTrackingScreen> createState() =>
@@ -43,23 +48,25 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   /// Live stream — the page updates itself as the stall moves the order.
   void _subscribe() {
     _sub?.cancel();
-    _sub = Repository.instance.streamOrder(widget.orderId).listen(
-      (order) {
-        if (!mounted) return;
-        setState(() {
-          _order = order;
-          _loading = false;
-          _error = order == null ? 'Order not found.' : null;
-        });
-      },
-      onError: (e) {
-        if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error = '$e';
-        });
-      },
-    );
+    _sub = Repository.instance
+        .streamOrder(widget.orderId)
+        .listen(
+          (order) {
+            if (!mounted) return;
+            setState(() {
+              _order = order;
+              _loading = false;
+              _error = order == null ? 'Order not found.' : null;
+            });
+          },
+          onError: (e) {
+            if (!mounted) return;
+            setState(() {
+              _loading = false;
+              _error = '$e';
+            });
+          },
+        );
   }
 
   @override
@@ -85,9 +92,14 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
         fileName: file.name,
       );
       await Repository.instance.submitProof(
-          orderId: widget.orderId, imageUrl: url);
+        orderId: widget.orderId,
+        imageUrl: url,
+      );
       if (!mounted) return;
-      showSnack(context, tr('Receipt submitted! The stall will verify it shortly.'));
+      showSnack(
+        context,
+        tr('Receipt submitted! The stall will verify it shortly.'),
+      );
     } catch (e) {
       if (mounted) showSnack(context, 'Upload failed: $e', error: true);
     } finally {
@@ -124,50 +136,27 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     return FrPage(
       title: tr('Order {n}', {'n': o.orderNumber}),
       subtitle: _isNewBanner,
-      actions: [
-        StatusChip.order(o.status),
-      ],
+      actions: [StatusChip.order(o.status)],
       children: [
         if (widget.isNew && o.isPaidFlow && o.status == kOrderAwaitingPayment)
-          _GcashPanel(
-            order: o,
-            uploading: _uploading,
-            onUpload: _uploadProof,
-          ),
+          _GcashPanel(order: o, uploading: _uploading, onUpload: _uploadProof),
 
         const SizedBox(height: 20),
 
         // Status timeline
-        Card(
+        PremiumCard(
+          padding: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   children: [
                     if (o.queueNumber != null) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: FrColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(FrRadius.md),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(tr('QUEUE #'),
-                                style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: FrColors.muted)),
-                            Text('#${o.queueNumber}',
-                                style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w900,
-                                    color: FrColors.primary)),
-                          ],
-                        ),
+                      _QueueTicket(
+                        number: o.queueNumber!,
+                        ready: o.status == kOrderReady,
                       ),
                       const SizedBox(width: 16),
                     ],
@@ -178,21 +167,30 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                           Text(
                             _headline(o),
                             style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 16),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
                           ),
                           const SizedBox(height: 2),
-                          Text(_subline(o),
-                              style: TextStyle(
-                                  color: FrColors.muted, fontSize: 13)),
+                          Text(
+                            _subline(o),
+                            style: TextStyle(
+                              color: FrColors.muted,
+                              fontSize: 13,
+                            ),
+                          ),
                           if (o.isActive) ...[
                             const SizedBox(height: 4),
                             Text(
                               o.pickupAt == null
                                   ? tr("Pickup: as soon as it's ready")
-                                  : tr('Pickup: {time}',
-                                      {'time': fmtClock(o.pickupAt!)}),
+                                  : tr('Pickup: {time}', {
+                                      'time': fmtClock(o.pickupAt!),
+                                    }),
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 13),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ],
@@ -207,7 +205,8 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: EnableAlertsButton(
-                        label: tr('Notify me when it\'s ready')),
+                      label: tr('Notify me when it\'s ready'),
+                    ),
                   ),
                 ],
               ],
@@ -228,21 +227,25 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ...o.items.map((it) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text('${it.qty} × ${it.label}')),
-                          Text(peso(it.lineTotal)),
-                        ],
-                      ),
-                    )),
+                ...o.items.map(
+                  (it) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('${it.qty} × ${it.label}')),
+                        Text(peso(it.lineTotal)),
+                      ],
+                    ),
+                  ),
+                ),
                 const Divider(height: 24),
                 _row('Subtotal', peso(o.subtotal)),
                 if (o.discount > 0)
-                  _row('Discount (${o.promoCode ?? ''})',
-                      '-${peso(o.discount)}',
-                      color: FrColors.success),
+                  _row(
+                    'Discount (${o.promoCode ?? ''})',
+                    '-${peso(o.discount)}',
+                    color: FrColors.success,
+                  ),
                 _row('Total', peso(o.total), bold: true),
                 const SizedBox(height: 8),
                 Row(
@@ -259,29 +262,31 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       o.paymentMethod != kPayGcash
                           ? 'Cash at pickup'
                           : o.paymentStatus == 'paid'
-                              ? 'Paid via GCash'
-                              : 'GCash (not yet confirmed)',
+                          ? 'Paid via GCash'
+                          : 'GCash (not yet confirmed)',
                       style: TextStyle(color: FrColors.muted, fontSize: 13),
                     ),
                   ],
                 ),
                 if (o.rejectReason != null) ...[
                   const SizedBox(height: 8),
-                  Text('Reason: ${o.rejectReason}',
-                      style: TextStyle(
-                          color: FrColors.danger, fontSize: 13)),
+                  Text(
+                    'Reason: ${o.rejectReason}',
+                    style: TextStyle(color: FrColors.danger, fontSize: 13),
+                  ),
                 ],
                 if (o.refundStatus != null) ...[
                   const SizedBox(height: 10),
                   Text(
                     o.refundOwed
                         ? 'Refund pending: ${o.vendorName ?? 'the stall'} owes '
-                            'you ${peso(o.total)} and will send it back to your GCash.'
+                              'you ${peso(o.total)} and will send it back to your GCash.'
                         : 'Refunded: ${peso(o.total)} was sent back to your GCash.',
                     style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: o.refundOwed ? FrColors.warning : FrColors.success),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: o.refundOwed ? FrColors.warning : FrColors.success,
+                    ),
                   ),
                 ],
               ],
@@ -316,16 +321,22 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: FrColors.muted,
-                  fontWeight: bold ? FontWeight.w800 : null)),
+          Text(
+            label,
+            style: TextStyle(
+              color: FrColors.muted,
+              fontWeight: bold ? FontWeight.w800 : null,
+            ),
+          ),
           const Spacer(),
-          Text(value,
-              style: TextStyle(
-                  fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
-                  color: color,
-                  fontSize: bold ? 17 : 14.5)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+              color: color,
+              fontSize: bold ? 17 : 14.5,
+            ),
+          ),
         ],
       ),
     );
@@ -405,8 +416,7 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
   Future<void> _loadGcash() async {
     // Stall's own GCash first, platform fallback (admin-configured).
     final vendor = await Repository.instance.getVendor(widget.order.vendorId);
-    if (vendor != null &&
-        (vendor.gcashNumber?.isNotEmpty ?? false)) {
+    if (vendor != null && (vendor.gcashNumber?.isNotEmpty ?? false)) {
       if (!mounted) return;
       setState(() {
         _gcash = {
@@ -448,20 +458,26 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                     color: FrColors.chipGcash.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(FrRadius.md),
                   ),
-                  child: Icon(Icons.account_balance_wallet,
-                      color: FrColors.chipGcash),
+                  child: Icon(
+                    Icons.account_balance_wallet,
+                    color: FrColors.chipGcash,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(tr('Pay with GCash'),
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 16)),
+                  child: Text(
+                    tr('Pay with GCash'),
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
                 ),
-                Text(peso(widget.order.total),
-                    style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: FrColors.primary)),
+                Text(
+                  peso(widget.order.total),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: FrColors.primary,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -479,28 +495,38 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                   color: FrColors.chipGcash.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(FrRadius.md),
                   border: Border.all(
-                      color: FrColors.chipGcash.withValues(alpha: 0.3)),
+                    color: FrColors.chipGcash.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Send exactly this amount to:',
-                        style: TextStyle(
-                            fontSize: 12.5, color: FrColors.muted)),
+                    Text(
+                      'Send exactly this amount to:',
+                      style: TextStyle(fontSize: 12.5, color: FrColors.muted),
+                    ),
                     const SizedBox(height: 6),
-                    SelectableText(number,
-                        style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: FrColors.chipGcash)),
+                    SelectableText(
+                      number,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: FrColors.chipGcash,
+                      ),
+                    ),
                     if (name != null && name.isNotEmpty)
-                      Text(name,
-                          style: TextStyle(
-                              color: FrColors.muted, fontSize: 13)),
+                      Text(
+                        name,
+                        style: TextStyle(color: FrColors.muted, fontSize: 13),
+                      ),
                     const SizedBox(height: 4),
-                    Text('Amount: ${peso(widget.order.total)}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text(
+                      'Amount: ${peso(widget.order.total)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -512,7 +538,10 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Icon(Icons.upload_file),
               label: Text(tr('Upload GCash receipt')),
             ),
@@ -552,15 +581,20 @@ class _ReviewCardState extends State<_ReviewCard> {
   @override
   void initState() {
     super.initState();
-    Repository.instance.getReview(widget.order.id).then((r) {
-      if (!mounted) return;
-      setState(() {
-        _existing = r;
-        _loading = false;
-      });
-    }, onError: (Object _) {
-      if (mounted) setState(() => _loading = false);
-    });
+    Repository.instance
+        .getReview(widget.order.id)
+        .then(
+          (r) {
+            if (!mounted) return;
+            setState(() {
+              _existing = r;
+              _loading = false;
+            });
+          },
+          onError: (Object _) {
+            if (mounted) setState(() => _loading = false);
+          },
+        );
   }
 
   @override
@@ -571,7 +605,11 @@ class _ReviewCardState extends State<_ReviewCard> {
 
   Future<void> _submit() async {
     if (_saving) return;
-    final err = validateText(_comment.text, max: Limits.review, label: 'Comment');
+    final err = validateText(
+      _comment.text,
+      max: Limits.review,
+      label: 'Comment',
+    );
     if (err != null) {
       showSnack(context, err, error: true);
       return;
@@ -586,8 +624,12 @@ class _ReviewCardState extends State<_ReviewCard> {
       final saved = await Repository.instance.getReview(widget.order.id);
       if (!mounted) return;
       setState(() => _existing = saved);
-      showSnack(context, tr('Thanks for rating {stall}!',
-          {'stall': widget.order.vendorName ?? 'the stall'}));
+      showSnack(
+        context,
+        tr('Thanks for rating {stall}!', {
+          'stall': widget.order.vendorName ?? 'the stall',
+        }),
+      );
     } catch (e) {
       if (mounted) showSnack(context, 'Could not save review: $e', error: true);
     } finally {
@@ -607,8 +649,9 @@ class _ReviewCardState extends State<_ReviewCard> {
           children: [
             Text(
               r == null
-                  ? tr('How was {stall}?',
-                      {'stall': widget.order.vendorName ?? 'your order'})
+                  ? tr('How was {stall}?', {
+                      'stall': widget.order.vendorName ?? 'your order',
+                    })
                   : tr('Your rating'),
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
@@ -634,7 +677,8 @@ class _ReviewCardState extends State<_ReviewCard> {
                 label: tr('Comment (optional)'),
                 maxLines: 2,
                 maxLength: Limits.review,
-                validator: (v) => validateText(v, max: Limits.review, label: 'Comment'),
+                validator: (v) =>
+                    validateText(v, max: Limits.review, label: 'Comment'),
               ),
               const SizedBox(height: 12),
               FilledButton(
@@ -675,7 +719,9 @@ class _Timeline extends StatelessWidget {
                   ? 'This order was rejected by the stall.'
                   : 'This order was cancelled.',
               style: TextStyle(
-                  color: FrColors.danger, fontWeight: FontWeight.w700),
+                color: FrColors.danger,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -742,14 +788,15 @@ class _TimelineRow extends StatelessWidget {
                 child: state == _StepState.done
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : state == _StepState.current
-                        ? const Icon(Icons.circle,
-                            size: 10, color: FrColors.primary)
-                        : null,
+                    ? const Icon(
+                        Icons.circle,
+                        size: 10,
+                        color: FrColors.primary,
+                      )
+                    : null,
               ),
               if (!isLast)
-                Expanded(
-                  child: Container(width: 2, color: FrColors.line),
-                ),
+                Expanded(child: Container(width: 2, color: FrColors.line)),
             ],
           ),
           const SizedBox(width: 12),
@@ -769,6 +816,134 @@ class _TimelineRow extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The queue number as a glossy 3D ticket; glows green and breathes once
+/// the order is ready.
+class _QueueTicket extends StatefulWidget {
+  final int number;
+  final bool ready;
+  const _QueueTicket({required this.number, required this.ready});
+
+  @override
+  State<_QueueTicket> createState() => _QueueTicketState();
+}
+
+class _QueueTicketState extends State<_QueueTicket>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  void _sync() {
+    if (widget.ready && !reduceMotion(context)) {
+      if (!_c.isAnimating) _c.repeat(reverse: true);
+    } else {
+      _c.stop();
+      _c.value = 0;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_QueueTicket old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.ready
+        ? const [Color(0xFF5BD68A), Color(0xFF15803D)]
+        : const [Color(0xFFFF6B4A), Color(0xFFC81E4A)];
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final v = Curves.easeInOut.transform(_c.value);
+        return Transform.scale(
+          scale: 1 + 0.05 * v,
+          child: Container(
+            width: 92,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(FrRadius.lg),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: colors,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.last.withValues(alpha: 0.35 + 0.25 * v),
+                  blurRadius: 18 + 14 * v,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            top: -12,
+            left: 0,
+            right: 0,
+            height: 34,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.28),
+                    Colors.white.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              Text(
+                tr('QUEUE #'),
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
+              Text(
+                '#${widget.number}',
+                style: const TextStyle(
+                  fontSize: 30,
+                  height: 1.1,
+                  letterSpacing: -1,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ],
           ),
         ],
       ),

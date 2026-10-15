@@ -11,6 +11,7 @@ import '../../models/user.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/repository.dart';
 import '../../shared/validation.dart';
+import '../../shared/premium.dart';
 import '../../shared/widgets.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -68,14 +69,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// closes today (or 4 hours out when it has no schedule).
   List<DateTime> _slots(Vendor v) {
     final now = DateTime.now();
-    final wait = (( _ordersAhead ?? 0) + 1) * v.prepMinutes;
+    final wait = ((_ordersAhead ?? 0) + 1) * v.prepMinutes;
     final earliest = now.add(Duration(minutes: wait < 15 ? 15 : wait));
-    var t = DateTime(earliest.year, earliest.month, earliest.day,
-        earliest.hour, (earliest.minute ~/ 15 + 1) * 15);
+    var t = DateTime(
+      earliest.year,
+      earliest.month,
+      earliest.day,
+      earliest.hour,
+      (earliest.minute ~/ 15 + 1) * 15,
+    );
     final today = v.hours[now.weekday];
     final end = v.hasSchedule && today != null
-        ? DateTime(now.year, now.month, now.day)
-            .add(Duration(minutes: today.closeMinute))
+        ? DateTime(
+            now.year,
+            now.month,
+            now.day,
+          ).add(Duration(minutes: today.closeMinute))
         : now.add(const Duration(hours: 4));
     final out = <DateTime>[];
     while (t.isBefore(end) && t.day == now.day && out.length < 48) {
@@ -122,11 +131,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final result = await Repository.instance.placeOrder(
         vendorId: vendorId,
         items: cart
-            .map((l) => {
-                  'product_id': l.product.id,
-                  'qty': l.qty,
-                  'addons': [for (final a in l.addons) a.name],
-                })
+            .map(
+              (l) => {
+                'product_id': l.product.id,
+                'qty': l.qty,
+                'addons': [for (final a in l.addons) a.name],
+              },
+            )
             .toList(),
         paymentMethod: _payment,
         promoCode: _promo.text.trim(),
@@ -149,10 +160,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Widget build(BuildContext context) {
     final lines = ref.watch(cartProvider);
     if (lines.isEmpty) {
-      return FrPage(title: tr('Checkout'), children: [
-        SizedBox(height: 60),
-        EmptyState(icon: Icons.receipt_long, title: tr('Nothing to check out')),
-      ]);
+      return FrPage(
+        title: tr('Checkout'),
+        children: [
+          SizedBox(height: 60),
+          EmptyState(
+            icon: Icons.receipt_long,
+            title: tr('Nothing to check out'),
+          ),
+        ],
+      );
     }
 
     final subtotal = lines.fold(0.0, (s, l) => s + l.lineTotal);
@@ -170,27 +187,40 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(children: [
-                  const Icon(Icons.storefront, size: 18, color: FrColors.primary),
-                  const SizedBox(width: 8),
-                  Text(_vendorName ?? 'Loading…',
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
-                ]),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.storefront,
+                      size: 18,
+                      color: FrColors.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _vendorName ?? 'Loading…',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
-                ...lines.map((l) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text('${l.qty} × ${l.label}')),
-                          Text(peso(l.lineTotal)),
-                        ],
-                      ),
-                    )),
+                ...lines.map(
+                  (l) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('${l.qty} × ${l.label}')),
+                        Text(peso(l.lineTotal)),
+                      ],
+                    ),
+                  ),
+                ),
                 const Divider(height: 24),
                 _row('Subtotal', peso(subtotal)),
                 if (_discount > 0)
-                  _row('Discount', '-${peso(_discount)}',
-                      color: FrColors.success),
+                  _row(
+                    'Discount',
+                    '-${peso(_discount)}',
+                    color: FrColors.success,
+                  ),
                 _row('Total', peso(total), bold: true),
               ],
             ),
@@ -210,21 +240,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     color: FrColors.info.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(FrRadius.md),
                   ),
-                  child: Icon(Icons.takeout_dining,
-                      color: FrColors.info),
+                  child: Icon(Icons.takeout_dining, color: FrColors.info),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(tr('Pickup at the stall'),
-                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      Text(
+                        tr('Pickup at the stall'),
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         _pickupPoint ?? kDefaultPickupNote,
-                        style: TextStyle(
-                            color: FrColors.muted, fontSize: 13),
+                        style: TextStyle(color: FrColors.muted, fontSize: 13),
                       ),
                     ],
                   ),
@@ -246,8 +276,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(tr('Payment method'),
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                Text(
+                  tr('Payment method'),
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 12),
                 RadioGroup<String>(
                   groupValue: _payment,
@@ -258,16 +290,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         value: kPayGcash,
                         title: Text(tr('GCash — pay now, upload receipt')),
                         subtitle: Text(
-                            'You will be shown the stall\'s GCash number after ordering.',
-                            style: TextStyle(fontSize: 12.5)),
+                          'You will be shown the stall\'s GCash number after ordering.',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
                         contentPadding: EdgeInsets.zero,
                       ),
                       RadioListTile<String>(
                         value: kPayCash,
                         title: Text(tr('Cash — pay at pickup')),
                         subtitle: Text(
-                            'Exact amount appreciated. Your order is accepted right away.',
-                            style: TextStyle(fontSize: 12.5)),
+                          'Exact amount appreciated. Your order is accepted right away.',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ],
@@ -286,8 +320,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(tr('Promo code'),
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                Text(
+                  tr('Promo code'),
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -296,7 +332,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         controller: _promo,
                         label: tr('Enter code'),
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[A-Za-z0-9]'),
+                          ),
                           LengthLimitingTextInputFormatter(Limits.promoCode),
                         ],
                       ),
@@ -311,9 +349,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 if (_promoError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text(_promoError!,
-                        style: TextStyle(
-                            color: FrColors.danger, fontSize: 12.5)),
+                    child: Text(
+                      _promoError!,
+                      style: TextStyle(color: FrColors.danger, fontSize: 12.5),
+                    ),
                   ),
                 const SizedBox(height: 16),
                 FrTextField(
@@ -321,7 +360,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   label: tr('Note for the stall (optional)'),
                   maxLines: 2,
                   maxLength: Limits.note,
-                  validator: (v) => validateText(v, max: Limits.note, label: 'Note'),
+                  validator: (v) =>
+                      validateText(v, max: Limits.note, label: 'Note'),
                 ),
               ],
             ),
@@ -329,22 +369,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ),
         const SizedBox(height: 24),
 
-        FilledButton(
-          onPressed: _placing ? null : _placeOrder,
-          style: FilledButton.styleFrom(minimumSize: const Size(0, 54)),
-          child: _placing
-              ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
-              : Text(
-                  isGcash
-                      ? tr('Place order — {total} via GCash',
-                          {'total': peso(total)})
-                      : tr('Place order — {total} cash at pickup',
-                          {'total': peso(total)}),
-                  style: const TextStyle(fontSize: 15)),
+        GradientButton(
+          onPressed: _placeOrder,
+          busy: _placing,
+          height: 58,
+          icon: isGcash
+              ? Icons.account_balance_wallet_outlined
+              : Icons.payments_outlined,
+          label: isGcash
+              ? tr('Place order — {total} via GCash', {'total': peso(total)})
+              : tr('Place order — {total} cash at pickup', {
+                  'total': peso(total),
+                }),
         ),
         const SizedBox(height: 40),
       ],
@@ -364,8 +400,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(tr('Pickup time'),
-                style: TextStyle(fontWeight: FontWeight.w800)),
+            Text(
+              tr('Pickup time'),
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 12),
             DropdownButtonFormField<DateTime?>(
               // Rebuild when the slot window moves on, so the field never
@@ -374,18 +412,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               initialValue: _pickupAt,
               isExpanded: true,
               decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.schedule)),
+                prefixIcon: Icon(Icons.schedule),
+              ),
               items: [
                 DropdownMenuItem(value: null, child: Text(asapLabel)),
                 for (final t in slots)
-                  DropdownMenuItem(value: t, child: Text(tr('Today, {time}', {'time': fmtClock(t)}))),
+                  DropdownMenuItem(
+                    value: t,
+                    child: Text(tr('Today, {time}', {'time': fmtClock(t)})),
+                  ),
               ],
               onChanged: (t) => setState(() => _pickupAt = t),
             ),
             if (slots.isEmpty) ...[
               const SizedBox(height: 8),
-              Text(tr('No later slots today. The stall closes soon.'),
-                  style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
+              Text(
+                tr('No later slots today. The stall closes soon.'),
+                style: TextStyle(color: FrColors.muted, fontSize: 12.5),
+              ),
             ],
           ],
         ),
@@ -412,7 +456,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     // On web, an exception thrown inside a Firestore transaction comes back
     // wrapped ("Error: Dart exception: Exception: ..."): show just the text.
     return '$e'.replaceFirst(
-        RegExp(r'^((Error|Dart exception|Exception|FirebaseError): ?)+'), '');
+      RegExp(r'^((Error|Dart exception|Exception|FirebaseError): ?)+'),
+      '',
+    );
   }
 
   Widget _row(String label, String value, {bool bold = false, Color? color}) {
@@ -420,16 +466,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: FrColors.muted,
-                  fontWeight: bold ? FontWeight.w800 : null)),
+          Text(
+            label,
+            style: TextStyle(
+              color: FrColors.muted,
+              fontWeight: bold ? FontWeight.w800 : null,
+            ),
+          ),
           const Spacer(),
-          Text(value,
-              style: TextStyle(
-                  fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
-                  color: color,
-                  fontSize: bold ? 17 : 14.5)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+              color: color,
+              fontSize: bold ? 17 : 14.5,
+            ),
+          ),
         ],
       ),
     );
