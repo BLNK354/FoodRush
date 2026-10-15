@@ -72,6 +72,10 @@ class Order {
 
   /// GCash money to send back: null (none) | owed | refunded.
   final String? refundStatus;
+
+  /// productId -> qty this order took out of stock (stock-limited items).
+  /// The rules only let a student move stock by exactly these amounts.
+  final Map<String, int> stockTaken;
   final List<OrderItem> items;
 
   const Order({
@@ -100,6 +104,7 @@ class Order {
     this.pickupAt,
     this.stockReleased = false,
     this.refundStatus,
+    this.stockTaken = const {},
     this.items = const [],
   });
 
@@ -130,6 +135,15 @@ class Order {
       }
     }
     if (off(sum, subtotal)) issues.add("Items don't add up to the subtotal");
+    // Stock this order took must match what it actually ordered.
+    for (final e in stockTaken.entries) {
+      final ordered = items
+          .where((i) => i.productId == e.key)
+          .fold<int>(0, (s, i) => s + i.qty);
+      if (ordered != e.value) {
+        issues.add('Took ${e.value} from stock but ordered $ordered');
+      }
+    }
     if (discount < 0 || discount > subtotal) issues.add('Invalid discount');
     if (discount > 0 && (promoCode == null || promoCode!.isEmpty)) {
       issues.add('Discount without a promo code');
@@ -166,6 +180,11 @@ class Order {
         pickupAt: (m['pickupAt'] as Timestamp?)?.toDate(),
         stockReleased: m['stockReleased'] == true,
         refundStatus: m['refundStatus'] as String?,
+        stockTaken: {
+          for (final e
+              in ((m['stockTaken'] as Map?) ?? const {}).entries)
+            '${e.key}': (e.value as num).toInt(),
+        },
         items: ((m['items'] as List<dynamic>? ?? const []))
             .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
             .toList(),

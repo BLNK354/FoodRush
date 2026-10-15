@@ -11,6 +11,7 @@ import '../../models/misc.dart';
 import '../../models/order.dart';
 import '../../providers/repository.dart';
 import '../../shared/order_alerts.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 import 'reorder.dart';
 
@@ -253,9 +254,11 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      o.paymentMethod == kPayGcash
-                          ? 'Paid via GCash'
-                          : 'Cash at pickup',
+                      o.paymentMethod != kPayGcash
+                          ? 'Cash at pickup'
+                          : o.paymentStatus == 'paid'
+                              ? 'Paid via GCash'
+                              : 'GCash (not yet confirmed)',
                       style: TextStyle(color: FrColors.muted, fontSize: 13),
                     ),
                   ],
@@ -565,6 +568,12 @@ class _ReviewCardState extends State<_ReviewCard> {
   }
 
   Future<void> _submit() async {
+    if (_saving) return;
+    final err = validateText(_comment.text, max: Limits.review, label: 'Comment');
+    if (err != null) {
+      showSnack(context, err, error: true);
+      return;
+    }
     setState(() => _saving = true);
     try {
       await Repository.instance.submitReview(
@@ -620,6 +629,8 @@ class _ReviewCardState extends State<_ReviewCard> {
                 controller: _comment,
                 label: 'Comment (optional)',
                 maxLines: 2,
+                maxLength: Limits.review,
+                validator: (v) => validateText(v, max: Limits.review, label: 'Comment'),
               ),
               const SizedBox(height: 12),
               FilledButton(

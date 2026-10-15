@@ -12,6 +12,7 @@ import '../../models/product.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
 import '../../shared/order_alerts.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 /// Public reply to a review; pops with the text (empty = remove the reply).
@@ -42,7 +43,7 @@ class _ReplyDialogState extends State<_ReplyDialog> {
           controller: _text,
           autofocus: true,
           maxLines: 3,
-          maxLength: 300,
+          maxLength: Limits.reply,
           decoration: const InputDecoration(
               hintText: 'Shown publicly under the review'),
         ),
@@ -52,7 +53,14 @@ class _ReplyDialogState extends State<_ReplyDialog> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel')),
         FilledButton(
-            onPressed: () => Navigator.pop(context, _text.text),
+            onPressed: () {
+              final err = validateText(_text.text, max: Limits.reply, label: 'Reply');
+              if (err != null) {
+                showSnack(context, err, error: true);
+                return;
+              }
+              Navigator.pop(context, _text.text);
+            },
             child: const Text('Post reply')),
       ],
     );

@@ -6,6 +6,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/theme_mode.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 /// The signed-in user's own account: edit name/phone (and student number for
@@ -127,15 +128,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             FrTextField(
                               controller: _fullName,
                               label: 'Full name',
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'Name is required'
-                                  : null,
+                              maxLength: Limits.name,
+                              validator: validatePersonName,
                             ),
                             const SizedBox(height: 14),
                             FrTextField(
                               controller: _phone,
                               label: 'Mobile number (optional)',
                               keyboardType: TextInputType.phone,
+                              maxLength: Limits.phone,
+                              validator: validatePhone,
                               hint: '09XXXXXXXXX',
                             ),
                             if (isCustomer) ...[
@@ -143,6 +145,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               FrTextField(
                                 controller: _studentNumber,
                                 label: 'Student number (optional)',
+                                maxLength: Limits.studentNumber,
+                                validator: validateStudentNumber,
                               ),
                             ],
                             const SizedBox(height: 20),

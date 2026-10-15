@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 /// Banner shown to everyone signed in (students, stalls, admins).
@@ -45,8 +46,10 @@ class _AnnouncementEditorState extends State<_AnnouncementEditor> {
 
   Future<void> _save({bool? active}) async {
     final nextActive = active ?? _active;
-    if (nextActive && _message.text.trim().isEmpty) {
-      showSnack(context, 'Write a message first.', error: true);
+    final err = validateText(_message.text,
+        max: Limits.announcement, required: nextActive, label: 'Message');
+    if (err != null) {
+      showSnack(context, err, error: true);
       return;
     }
     setState(() => _saving = true);
@@ -87,7 +90,9 @@ class _AnnouncementEditorState extends State<_AnnouncementEditor> {
               label: 'Message',
               hint: 'e.g. Canteen closed this Friday for the holiday',
               maxLines: 2,
+              maxLength: Limits.announcement,
               enabled: _loaded,
+              validator: (v) => validateText(v, max: Limits.announcement),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -282,14 +287,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           children: [
             TextField(
               controller: number,
+              keyboardType: TextInputType.phone,
+              maxLength: Limits.phone,
               decoration: const InputDecoration(
-                  labelText: 'GCash number (09XXXXXXXXX)'),
+                  labelText: 'GCash number (09XXXXXXXXX)', counterText: ''),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: name,
+              maxLength: Limits.name,
               decoration: const InputDecoration(
-                  labelText: 'Account name (optional)'),
+                  labelText: 'Account name (optional)', counterText: ''),
             ),
           ],
         ),
@@ -306,6 +314,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       ),
     );
     if (saved != true) return;
+    final err = firstError([
+      validatePhone(number.text, required: true, label: 'GCash number'),
+      name.text.trim().isEmpty ? null : validatePersonName(name.text),
+    ]);
+    if (err != null) {
+      if (mounted) showSnack(context, err, error: true);
+      return;
+    }
     try {
       await Repository.instance.setPlatformGcash(
         number: number.text.trim(),

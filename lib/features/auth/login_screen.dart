@@ -6,6 +6,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../shared/responsive.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -105,16 +106,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             controller: _email,
             label: 'Email',
             keyboardType: TextInputType.emailAddress,
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Email is required' : null,
+            maxLength: Limits.email,
+            validator: validateEmail,
           ),
           const SizedBox(height: 16),
           FrTextField(
             controller: _password,
             label: 'Password',
             obscure: true,
+            maxLength: Limits.password,
             validator: (v) =>
                 v == null || v.isEmpty ? 'Password is required' : null,
+            onSubmitted: (_) {
+              if (!_busy) _submit();
+            },
           ),
           Align(
             alignment: Alignment.centerRight,
@@ -281,6 +286,8 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
             controller: _email,
             label: 'Email',
             keyboardType: TextInputType.emailAddress,
+            maxLength: Limits.email,
+            validator: validateEmail,
           ),
         ],
       ),
@@ -290,7 +297,14 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, _email.text.trim()),
+          onPressed: () {
+            final err = validateEmail(_email.text);
+            if (err != null) {
+              showSnack(context, err, error: true);
+              return;
+            }
+            Navigator.pop(context, _email.text.trim());
+          },
           child: const Text('Send link'),
         ),
       ],

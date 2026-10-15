@@ -1,13 +1,14 @@
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class VendorSettingsScreen extends ConsumerStatefulWidget {
@@ -94,8 +95,18 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
   }
 
   Future<void> _save() async {
-    if (_name.text.trim().isEmpty) {
-      showSnack(context, 'Stall name is required.', error: true);
+    final err = firstError([
+      validateText(_name.text,
+          max: Limits.name, required: true, min: 2, label: 'Stall name'),
+      validateText(_description.text, max: Limits.description, label: 'Description'),
+      validateText(_pickupPoint.text, max: Limits.pickupPoint, label: 'Pickup point'),
+      validatePhone(_gcashNumber.text, label: 'GCash number'),
+      _gcashName.text.trim().isEmpty ? null : validatePersonName(_gcashName.text),
+      validateWholeNumber(_prep.text,
+          min: 1, max: 120, required: true, label: 'Prep time'),
+    ]);
+    if (err != null) {
+      showSnack(context, err, error: true);
       return;
     }
     final prep = int.tryParse(_prep.text.trim());
@@ -239,6 +250,12 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
               controller: _prep,
               label: 'Average minutes to prepare one order',
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(3),
+              ],
+              validator: (v) => validateWholeNumber(v,
+                  min: 1, max: 120, required: true, label: 'Prep time'),
               hint: 'Used for the "Ready in ~N min" estimate students see',
             ),
           ],
@@ -342,18 +359,28 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                 const SectionHeader('Stall profile'),
                 _logoPicker(),
                 const SizedBox(height: 18),
-                FrTextField(controller: _name, label: 'Stall name'),
+                FrTextField(
+                  controller: _name,
+                  label: 'Stall name',
+                  maxLength: Limits.name,
+                  validator: (v) => validateText(v,
+                      max: Limits.name, required: true, min: 2, label: 'Stall name'),
+                ),
                 const SizedBox(height: 14),
                 FrTextField(
                   controller: _description,
                   label: 'Description',
                   maxLines: 3,
+                  maxLength: Limits.description,
+                  validator: (v) => validateText(v, max: Limits.description),
                 ),
                 const SizedBox(height: 14),
                 FrTextField(
                   controller: _pickupPoint,
                   label: 'Pickup point',
                   hint: 'e.g. Canteen Gate 2, beside the flagpole',
+                  maxLength: Limits.pickupPoint,
+                  validator: (v) => validateText(v, max: Limits.pickupPoint),
                 ),
               ],
             ),
@@ -378,12 +405,17 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                   label: 'GCash mobile number',
                   keyboardType: TextInputType.phone,
                   hint: '09XXXXXXXXX',
+                  maxLength: Limits.phone,
+                  validator: (v) => validatePhone(v, label: 'GCash number'),
                 ),
                 const SizedBox(height: 14),
                 FrTextField(
                   controller: _gcashName,
                   label: 'GCash account name',
                   hint: 'Name registered in GCash',
+                  maxLength: Limits.name,
+                  validator: (v) =>
+                      (v ?? '').trim().isEmpty ? null : validatePersonName(v),
                 ),
               ],
             ),

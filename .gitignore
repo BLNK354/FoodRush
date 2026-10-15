@@ -29,3 +29,4 @@ Thumbs.db
 node_modules/
 firebase/tests/*-debug.log
 firebase-debug.log
+*-debug.log

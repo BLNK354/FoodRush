@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -189,8 +190,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             FrTextField(
               controller: _fullName,
               label: 'Full name',
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Name is required' : null,
+              maxLength: Limits.name,
+              validator: validatePersonName,
             ),
             const SizedBox(height: 16),
 
@@ -200,9 +201,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ? 'LPU email (@$kUniversityDomain)'
                   : 'Email',
               keyboardType: TextInputType.emailAddress,
+              maxLength: Limits.email,
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Email is required';
-                if (_role == kRoleCustomer && !isLpuEmail(v)) {
+                final err = validateEmail(v);
+                if (err != null) return err;
+                if (_role == kRoleCustomer && !isLpuEmail(v!)) {
                   return 'Must be an @$kUniversityDomain email';
                 }
                 return null;
@@ -215,6 +218,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 controller: _studentNumber,
                 label: 'Student number (optional)',
                 keyboardType: TextInputType.text,
+                maxLength: Limits.studentNumber,
+                validator: validateStudentNumber,
               ),
             ],
 
@@ -223,6 +228,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               controller: _phone,
               label: 'Mobile number (optional)',
               keyboardType: TextInputType.phone,
+              maxLength: Limits.phone,
+              validator: validatePhone,
             ),
             const SizedBox(height: 16),
             Row(
@@ -232,6 +239,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _password,
                     label: 'Password',
                     obscure: true,
+                    maxLength: Limits.password,
                     validator: (v) =>
                         v == null || v.length < kMinPasswordLength
                             ? 'At least $kMinPasswordLength characters'
@@ -244,6 +252,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _confirm,
                     label: 'Confirm',
                     obscure: true,
+                    maxLength: Limits.password,
                     validator: (v) =>
                         v != _password.text ? 'Passwords do not match' : null,
                   ),
@@ -257,15 +266,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               FrTextField(
                 controller: _stallName,
                 label: 'Stall name',
-                validator: (v) => v == null || v.trim().isEmpty
-                    ? 'Stall name is required'
-                    : null,
+                maxLength: Limits.name,
+                validator: (v) => validateText(v,
+                    max: Limits.name, required: true, min: 2, label: 'Stall name'),
               ),
               const SizedBox(height: 12),
               FrTextField(
                 controller: _stallDescription,
                 label: 'Short description',
                 maxLines: 2,
+                maxLength: Limits.description,
+                validator: (v) => validateText(v, max: Limits.description),
               ),
               const SizedBox(height: 8),
               Container(

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -56,6 +58,13 @@ Future<void> main() async {
   }
   try {
     await Firebase.initializeApp(options: defaultFirebaseOptions);
+    // Local testing only: `--dart-define=USE_EMULATORS=true` points the app
+    // at the Firebase emulators (firebase emulators:start --only auth,firestore)
+    // so nothing touches the live project. Never set in real builds.
+    if (kUseEmulators) {
+      await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
+      FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8085);
+    }
   } catch (e) {
     runApp(_StartupError('Could not connect to Firebase: $e'));
     return;

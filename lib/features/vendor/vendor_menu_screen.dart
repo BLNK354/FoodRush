@@ -1,6 +1,6 @@
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../../models/product.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class VendorMenuScreen extends ConsumerStatefulWidget {
@@ -251,6 +252,14 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     bool available = existing?.isAvailable ?? true;
     Uint8List? newImageBytes;
     String? newImageName;
+    var showErrors = false; // after the first Save attempt
+
+    String? nameErr() => validateText(name.text,
+        max: Limits.productName, required: true, min: 2, label: 'Name');
+    String? descErr() => validateText(desc.text, max: Limits.description);
+    String? priceErr() => validateMoney(price.text);
+    String? stockErr() => validateWholeNumber(stock.text,
+        min: 0, max: Limits.maxStock, label: 'Stock');
 
     final saved = await showDialog<bool>(
       context: context,
@@ -266,13 +275,21 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
               children: [
                 TextField(
                   controller: name,
-                  decoration: const InputDecoration(labelText: 'Product name'),
+                  maxLength: Limits.productName,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                      labelText: 'Product name',
+                      counterText: '',
+                      errorText: showErrors ? nameErr() : null),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: desc,
-                  decoration:
-                      const InputDecoration(labelText: 'Description (optional)'),
+                  maxLength: Limits.description,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                      labelText: 'Description (optional)',
+                      errorText: showErrors ? descErr() : null),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 12),
@@ -281,9 +298,18 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                     Expanded(
                       child: TextField(
                         controller: price,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Price (₱)'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        // Digits and one dot only: "-", "e", "NaN" can't be typed.
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                          LengthLimitingTextInputFormatter(8),
+                        ],
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: InputDecoration(
+                            labelText: 'Price (₱)',
+                            errorText: showErrors ? priceErr() : null,
+                            errorMaxLines: 2),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -291,8 +317,16 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                       child: TextField(
                         controller: stock,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            labelText: 'Stock (optional)'),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(4),
+                        ],
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: InputDecoration(
+                            labelText: 'Stock (optional)',
+                            helperText: 'Blank = unlimited',
+                            errorText: showErrors ? stockErr() : null,
+                            errorMaxLines: 2),
                       ),
                     ),
                   ],
@@ -363,7 +397,13 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                if (firstError([nameErr(), descErr(), priceErr(), stockErr()]) != null) {
+                  setDialogState(() => showErrors = true);
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
               child: const Text('Save'),
             ),
           ],
@@ -373,13 +413,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     );
     if (saved != true) return;
 
-    final priceValue = double.tryParse(price.text.trim());
-    if (name.text.trim().isEmpty || priceValue == null) {
-      if (mounted) {
-        showSnack(context, 'Name and a valid price are required.', error: true);
-      }
-      return;
-    }
+    final priceValue = double.parse(price.text.trim()); // validated above
 
     try {
       String? finalImage = imageUrl;
@@ -448,8 +482,9 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: nameCtrl,
+                maxLength: Limits.categoryName,
                 decoration: const InputDecoration(
-                    labelText: 'New category name'),
+                    labelText: 'New category name', counterText: ''),
                 onSubmitted: (_) {},
               ),
             ],
@@ -462,7 +497,13 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
           ),
           FilledButton(
             onPressed: () async {
-              if (nameCtrl.text.trim().isEmpty || _vendor == null) return;
+              if (_vendor == null) return;
+              final err = validateText(nameCtrl.text,
+                  max: Limits.categoryName, required: true, label: 'Category');
+              if (err != null) {
+                showSnack(context, err, error: true);
+                return;
+              }
               try {
                 await Repository.instance.addCategory(
                   vendorId: _vendor!.id,

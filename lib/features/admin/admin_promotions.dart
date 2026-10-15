@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../../models/misc.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class AdminPromotionsScreen extends ConsumerStatefulWidget {
@@ -182,6 +184,12 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
     String type = existing?.discountType ?? 'percent';
     bool active = existing?.isActive ?? true;
 
+    var showErrors = false; // after the first Save attempt
+    String? codeErr() => validatePromoCode(code.text);
+    String? valueErr() => validateDiscount(value.text, type);
+    String? minErr() => validateMoney(minOrder.text,
+        max: Limits.maxMinOrder, allowZero: true, required: false, label: 'Minimum order');
+
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -197,8 +205,14 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
                 TextField(
                   controller: code,
                   textCapitalization: TextCapitalization.characters,
-                  decoration:
-                      const InputDecoration(labelText: 'Code'),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                    LengthLimitingTextInputFormatter(Limits.promoCode),
+                  ],
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                      labelText: 'Code',
+                      errorText: showErrors ? codeErr() : null),
                 ),
                 const SizedBox(height: 12),
                 SegmentedButton<String>(
@@ -213,19 +227,33 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: value,
-                  keyboardType: TextInputType.number,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    LengthLimitingTextInputFormatter(8),
+                  ],
+                  onChanged: (_) => setDialogState(() {}),
                   decoration: InputDecoration(
                     labelText: type == 'percent'
-                        ? 'Discount percent'
+                        ? 'Discount percent (1-100)'
                         : 'Discount amount (₱)',
+                    errorText: showErrors ? valueErr() : null,
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: minOrder,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                      labelText: 'Minimum order (₱, optional)'),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    LengthLimitingTextInputFormatter(9),
+                  ],
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                      labelText: 'Minimum order (₱, optional)',
+                      errorText: showErrors ? minErr() : null),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -242,7 +270,13 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                if (firstError([codeErr(), valueErr(), minErr()]) != null) {
+                  setDialogState(() => showErrors = true);
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
               child: const Text('Save'),
             ),
           ],
@@ -251,14 +285,7 @@ class _AdminPromotionsScreenState extends ConsumerState<AdminPromotionsScreen> {
     );
     if (saved != true) return;
 
-    final valueNum = double.tryParse(value.text.trim());
-    if (code.text.trim().isEmpty || valueNum == null || valueNum <= 0) {
-      if (mounted) {
-        showSnack(context, 'Code and a positive value are required.',
-            error: true);
-      }
-      return;
-    }
+    final valueNum = double.parse(value.text.trim()); // validated above
 
     try {
       await Repository.instance.upsertPromotion(
