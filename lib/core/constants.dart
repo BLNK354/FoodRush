@@ -2,37 +2,35 @@
 library;
 
 // ---------------------------------------------------------------------------
-// Firebase — supplied at build time via --dart-define (web config values from
-// Firebase console → Project settings → Your apps → Web app).
-// flutter run -d web-server \
-//   --dart-define=FIREBASE_API_KEY=... \
-//   --dart-define=FIREBASE_PROJECT_ID=... \
-//   --dart-define=FIREBASE_APP_ID=... \
-//   --dart-define=FIREBASE_MESSAGING_SENDER_ID=...
+// Firebase web config (Firebase console → Project settings → Your apps → Web
+// app). These are the project's real values, compiled in like a FlutterFire
+// firebase_options.dart. They are NOT secrets: every visitor's browser gets
+// them in main.dart.js; access is controlled by firebase/firestore.rules.
+// A build may still override any of them with --dart-define=FIREBASE_...=...
 // ---------------------------------------------------------------------------
 const String kFirebaseApiKey = String.fromEnvironment(
   'FIREBASE_API_KEY',
-  defaultValue: 'YOUR-API-KEY',
+  defaultValue: 'AIzaSyBCZ3Vxm_JkhaZJpGcaiYty6wVmwwR1JKs',
 );
 const String kFirebaseProjectId = String.fromEnvironment(
   'FIREBASE_PROJECT_ID',
-  defaultValue: 'YOUR-PROJECT-ID',
+  defaultValue: 'foodrush-5f29f',
 );
 const String kFirebaseAppId = String.fromEnvironment(
   'FIREBASE_APP_ID',
-  defaultValue: 'YOUR-APP-ID',
+  defaultValue: '1:276031798967:web:787f78eed11854dc0d9732',
 );
 const String kFirebaseMessagingSenderId = String.fromEnvironment(
   'FIREBASE_MESSAGING_SENDER_ID',
-  defaultValue: 'YOUR-SENDER-ID',
+  defaultValue: '276031798967',
 );
 const String kFirebaseAuthDomain = String.fromEnvironment(
   'FIREBASE_AUTH_DOMAIN',
-  defaultValue: 'YOUR-PROJECT-ID.firebaseapp.com',
+  defaultValue: 'foodrush-5f29f.firebaseapp.com',
 );
 const String kFirebaseStorageBucket = String.fromEnvironment(
   'FIREBASE_STORAGE_BUCKET',
-  defaultValue: 'YOUR-PROJECT-ID.appspot.com',
+  defaultValue: 'foodrush-5f29f.firebasestorage.app',
 );
 
 // ---------------------------------------------------------------------------

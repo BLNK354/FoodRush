@@ -41,8 +41,67 @@ Future<void> main() async {
     };
     return true;
   }());
-  await Firebase.initializeApp(options: defaultFirebaseOptions);
+  // A build without Firebase config used to be a blank white page (Firebase
+  // Auth throws during start-up). Say what's wrong instead.
+  final missing = {
+    'FIREBASE_API_KEY': kFirebaseApiKey,
+    'FIREBASE_PROJECT_ID': kFirebaseProjectId,
+    'FIREBASE_APP_ID': kFirebaseAppId,
+  }.entries.where((e) => e.value.isEmpty || e.value.startsWith('YOUR-'));
+  if (missing.isNotEmpty) {
+    runApp(_StartupError(
+        'This build has no Firebase configuration '
+        '(${missing.map((e) => e.key).join(', ')}).'));
+    return;
+  }
+  try {
+    await Firebase.initializeApp(options: defaultFirebaseOptions);
+  } catch (e) {
+    runApp(_StartupError('Could not connect to Firebase: $e'));
+    return;
+  }
   runApp(const ProviderScope(child: FoodRushApp()));
+}
+
+/// Shown instead of a blank page when the app can't start at all.
+class _StartupError extends StatelessWidget {
+  final String message;
+  const _StartupError(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.cloud_off, size: 48, color: FrColors.primary),
+                  const SizedBox(height: 16),
+                  const Text('FoodRush can\'t start',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text(message, textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'If you run this site: set the FIREBASE_* environment '
+                    'variables for this deployment and redeploy.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// One cached ThemeData per mode: a fresh instance per build makes

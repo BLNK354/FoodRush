@@ -37,20 +37,16 @@
 
 ## 6. Wire the values into the app
 
-### Local development
-```bash
-flutter run -d web-server \
-  --dart-define=FIREBASE_API_KEY=... \
-  --dart-define=FIREBASE_PROJECT_ID=... \
-  --dart-define=FIREBASE_APP_ID=... \
-  --dart-define=FIREBASE_MESSAGING_SENDER_ID=... \
-  --dart-define=FIREBASE_AUTH_DOMAIN=... \
-  --dart-define=FIREBASE_STORAGE_BUCKET=...
-```
+Put the six values in the `defaultValue`s in `lib/core/constants.dart`
+(this project's are already there). They are not secrets: the browser
+receives them anyway, and `firestore.rules` is what protects the data.
 
-### On Vercel
-Add all six `FIREBASE_*` variables as **Environment Variables** in the Vercel
-project settings (see README → Deploying).
+To build against a different project without editing code, pass any of
+them as `--dart-define=FIREBASE_API_KEY=...` locally, or set `FIREBASE_*`
+environment variables on Vercel; set ones override the compiled-in values.
+
+Optional hardening: Google Cloud Console → APIs & Services → Credentials →
+your Browser key → restrict it to your site's domain(s).
 
 ## 7. First admin (automatic)
 The **first account ever registered** in the app automatically becomes the
