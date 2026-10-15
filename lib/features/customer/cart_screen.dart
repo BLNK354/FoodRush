@@ -58,9 +58,16 @@ class CartScreen extends ConsumerWidget {
                               fontWeight: FontWeight.w800, fontSize: 16)),
                       IconButton(
                         icon: const Icon(Icons.add_circle_outline),
-                        onPressed: () => ref
-                            .read(cartProvider.notifier)
-                            .setQty(line.product.id, line.qty + 1),
+                        tooltip: line.qty >=
+                                CartController.maxQtyFor(line.product)
+                            ? 'Max ${CartController.maxQtyFor(line.product)} per order'
+                            : 'Add one',
+                        onPressed: line.qty >=
+                                CartController.maxQtyFor(line.product)
+                            ? null
+                            : () => ref
+                                .read(cartProvider.notifier)
+                                .setQty(line.product.id, line.qty + 1),
                       ),
                       const SizedBox(width: 8),
                       SizedBox(

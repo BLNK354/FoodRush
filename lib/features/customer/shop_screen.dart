@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class ShopScreen extends ConsumerStatefulWidget {
@@ -82,6 +84,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       subtitle: 'Stalls on campus — order ahead, pick up when it\'s ready.',
       children: [
         TextField(
+          inputFormatters: [LengthLimitingTextInputFormatter(Limits.search)],
           decoration: const InputDecoration(
             hintText: 'Search stalls or food…',
             prefixIcon: Icon(Icons.search),

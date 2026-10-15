@@ -11,9 +11,17 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, doc, getDoc, getDocs, increment, query, setDoc, Timestamp,
-  updateDoc, where, writeBatch,
+  collection, doc, getDoc, getDocs, increment, query, serverTimestamp, setDoc,
+  Timestamp, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
+
+// Like the app's placeOrder: extra writes + the anti-spam lastOrderAt stamp.
+function inOrderTxn(f, uid, writes) {
+  const b = writeBatch(f);
+  writes(b, f);
+  b.update(doc(f, 'users', uid), { lastOrderAt: serverTimestamp() });
+  return b.commit();
+}
 
 let env;
 const db = (uid) => (uid ? env.authenticatedContext(uid) : env.unauthenticatedContext()).firestore();
@@ -90,7 +98,7 @@ describe('orders: privacy', () => {
 });
 
 describe('orders: tampering on create', () => {
-  const create = (o) => setDoc(doc(student(), 'orders/new'), o);
+  const create = (o) => inOrderTxn(student(), 'student1', (b, f) => b.set(doc(f, 'orders/new'), o));
   test('a consistent order is accepted', () => assertSucceeds(create(order())));
   test('a total that does not add up is refused', () => assertFails(create(order({ total: 0 }))));
   test('a discount bigger than the subtotal is refused', () => assertFails(create(order({ discount: 150, total: -50 }))));
@@ -98,7 +106,9 @@ describe('orders: tampering on create', () => {
   test('a GCash order cannot start as accepted', () => assertFails(create(order({ paymentMethod: 'gcash' }))));
   test('an empty order is refused', () => assertFails(create(order({ items: [] }))));
   test('a deactivated account cannot order', () =>
-    assertFails(setDoc(doc(db('banned'), 'orders/new'), order({ customerId: 'banned' }))));
+    assertFails(inOrderTxn(db('banned'), 'banned', (b, f) => b.set(doc(f, 'orders/new'), order({ customerId: 'banned' })))));
+  test('an order without the anti-spam stamp is refused', () =>
+    assertFails(setDoc(doc(student(), 'orders/new'), order())));
 });
 
 describe('orders: refunds', () => {
@@ -114,30 +124,43 @@ describe('orders: refunds', () => {
 
 describe('products: stock', () => {
   const adobo = (f) => doc(f, 'vendors/v1/products/adobo');
-  test('checkout may lower stock', () => assertSucceeds(updateDoc(adobo(student()), { stockQty: 3 })));
-  test('...never below zero', () => assertFails(updateDoc(adobo(student()), { stockQty: -1 })));
+  // Checkout takes stock in the same transaction that creates the order.
+  const checkout = (qty, newStock) => {
+    const f = student();
+    return inOrderTxn(f, 'student1', (b) => {
+      b.set(doc(f, 'orders/new'), order({ stockTaken: { adobo: qty } }));
+      b.update(adobo(f), { stockQty: newStock, lastStockOrder: 'new' });
+    });
+  };
+  test('checkout takes exactly the ordered quantity', () => assertSucceeds(checkout(2, 3)));
+  test('...not more than ordered', () => assertFails(checkout(2, 0)));
+  test('...never below zero', () => assertFails(checkout(6, -1)));
+  test('stock cannot change without an order', () => assertFails(updateDoc(adobo(student()), { stockQty: 3 })));
   test('a student cannot change the price', () => assertFails(updateDoc(adobo(student()), { price: 1 })));
   test('the owner changes the price', () => assertSucceeds(updateDoc(adobo(owner()), { price: 55 })));
 });
 
 describe('queue counters', () => {
   const counter = (f) => doc(f, 'counters/vendor_v1');
-  test('placing an order bumps the number by one', () => assertSucceeds(setDoc(counter(student()), { count: 5, day: today })));
-  test('jumping the number is refused', () => assertFails(setDoc(counter(student()), { count: 9, day: today })));
-  test('resetting mid-day is refused', () => assertFails(setDoc(counter(student()), { count: 1, day: today })));
+  // Queue numbers move only inside an order transaction (stamped).
+  const bump = (data) => inOrderTxn(student(), 'student1', (b, f) => b.set(counter(f), data, { merge: true }));
+  test('placing an order bumps the number by one', () => assertSucceeds(bump({ count: 5, day: today })));
+  test('jumping the number is refused', () => assertFails(bump({ count: 9, day: today })));
+  test('resetting mid-day is refused', () => assertFails(bump({ count: 1, day: today })));
+  test('bumping outside an order is refused', () => assertFails(setDoc(counter(student()), { count: 5, day: today })));
   test('a new day restarts at 1', async () => {
     await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { count: 40, day: yesterday }));
-    await assertSucceeds(setDoc(counter(student()), { count: 1, day: today }));
+    await assertSucceeds(bump({ count: 1, day: today }));
   });
   test('first order after the stall published its queue size', async () => {
     // Regression: the stall's app can create the counter with only
     // `active`; the first student order must still get queue number 1.
     await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { active: 0 }));
-    await assertSucceeds(setDoc(counter(student()), { count: 1, day: today }, { merge: true }));
+    await assertSucceeds(bump({ count: 1, day: today }));
   });
   test('...and that counter cannot jump either', async () => {
     await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { active: 0 }));
-    await assertFails(setDoc(counter(student()), { count: 7, day: today }, { merge: true }));
+    await assertFails(bump({ count: 7, day: today }));
   });
   test('the stall publishes its queue size', () =>
     assertSucceeds(setDoc(counter(owner()), { active: 3 }, { merge: true })));
@@ -155,7 +178,7 @@ describe('reviews', () => {
     const f = student();
     const b = writeBatch(f);
     b.set(doc(f, 'reviews/done1'), review('done1', 4));
-    b.update(doc(f, 'vendors/v1'), { ratingSum: increment(4), ratingCount: increment(1) });
+    b.update(doc(f, 'vendors/v1'), { ratingSum: increment(4), ratingCount: increment(1), lastReviewId: 'done1' });
     await assertSucceeds(b.commit());
   });
   test('an order not picked up yet cannot be rated', () =>

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -10,6 +11,7 @@ import '../../models/user.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class StallMenuScreen extends ConsumerStatefulWidget {
@@ -282,6 +284,9 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
 
               if (_products.length > 4) ...[
                 TextField(
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(Limits.search)
+                  ],
                   decoration: const InputDecoration(
                     hintText: 'Search this menu…',
                     prefixIcon: Icon(Icons.search),

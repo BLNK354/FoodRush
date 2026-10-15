@@ -33,6 +33,10 @@ const String kFirebaseStorageBucket = String.fromEnvironment(
   defaultValue: 'foodrush-5f29f.firebasestorage.app',
 );
 
+/// Local testing switch: talk to the Firebase emulators instead of the live
+/// project (see main.dart). Off in every normal build.
+const bool kUseEmulators = bool.fromEnvironment('USE_EMULATORS');
+
 // ---------------------------------------------------------------------------
 // University gate
 // ---------------------------------------------------------------------------
@@ -134,6 +138,9 @@ const String kDefaultPickupNote =
     'Claim at the stall counter. Show your queue number.';
 const String kSettingsDocPlatformGcash = 'platform_gcash';
 const String kSettingsDocAnnouncement = 'announcement';
+
+/// Minimum gap between two orders by the same student (enforced by rules).
+const Duration kOrderCooldown = Duration(seconds: 30);
 
 /// Products at or below this stock show as "running low" to the stall.
 const int kLowStockThreshold = 5;

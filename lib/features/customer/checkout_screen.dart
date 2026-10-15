@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +9,7 @@ import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -106,7 +108,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<void> _placeOrder() async {
     final cart = ref.read(cartProvider);
-    if (cart.isEmpty) return;
+    if (cart.isEmpty || _placing) return; // double-tap guard
+    final noteErr = validateText(_note.text, max: Limits.note, label: 'Note');
+    if (noteErr != null) {
+      showSnack(context, noteErr, error: true);
+      return;
+    }
     setState(() => _placing = true);
 
     final vendorId = ref.read(cartProvider.notifier).vendorId!;
@@ -283,6 +290,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       child: FrTextField(
                         controller: _promo,
                         label: 'Enter code',
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                          LengthLimitingTextInputFormatter(Limits.promoCode),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -304,6 +315,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   controller: _note,
                   label: 'Note for the stall (optional)',
                   maxLines: 2,
+                  maxLength: Limits.note,
+                  validator: (v) => validateText(v, max: Limits.note, label: 'Note'),
                 ),
               ],
             ),
@@ -389,7 +402,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     // placeOrder's own checks (closed stall, out of stock, ...) are already
     // written for people.
-    return '$e'.replaceFirst('Exception: ', '');
+    // On web, an exception thrown inside a Firestore transaction comes back
+    // wrapped ("Error: Dart exception: Exception: ..."): show just the text.
+    return '$e'.replaceFirst(
+        RegExp(r'^((Error|Dart exception|Exception|FirebaseError): ?)+'), '');
   }
 
   Widget _row(String label, String value, {bool bold = false, Color? color}) {

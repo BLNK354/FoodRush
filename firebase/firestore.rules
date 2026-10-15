@@ -1,8 +1,12 @@
 rules_version = '2';
 
 // FoodRush — Firestore security rules
-// Paste into Firebase console → Firestore Database → Rules → Publish,
-// or deploy with the Firebase CLI: firebase deploy --only firestore:rules
+// Deploy with: firebase deploy --only firestore:rules
+// Tests:       cd firebase/tests && npm test && npm run test:abuse
+//
+// Assume every client is hostile: anyone can skip the app and call Firestore
+// directly from browser dev tools. So every write below is checked for WHO
+// may make it, WHICH fields it may touch, and that sizes/numbers are sane.
 //
 // Public-ish data (stalls, menus, promos, reviews) is readable by any
 // signed-in user. Personal data is not: orders are readable by their
@@ -13,34 +17,49 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ------------------------------------------------------------ helpers --
     // Signed in AND not deactivated by an admin. A missing users doc (signup
     // still in progress) counts as active so the create below can succeed.
     function signedIn() {
       return request.auth != null
         && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
-            || get(/databases/$(database)/documents/users/$(request.auth.uid))
-                 .data.get('isActive', true) != false);
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isActive', true) != false);
     }
     function me() { return request.auth.uid; }
-    function myRole() {
-      return get(/databases/$(database)/documents/users/$(me())).data.role;
-    }
+    function myRole() { return get(/databases/$(database)/documents/users/$(me())).data.role; }
     function isAdmin() { return signedIn() && myRole() == 'admin'; }
     function isCustomer() { return signedIn() && myRole() == 'customer'; }
     function isVendor() { return signedIn() && myRole() == 'vendor'; }
     function ownsStall(vendorId) {
-      return isVendor()
-        && get(/databases/$(database)/documents/vendors/$(vendorId)).data.ownerId == me();
+      return isVendor() && get(/databases/$(database)/documents/vendors/$(vendorId)).data.ownerId == me();
     }
 
     // Bootstrap: the FIRST account may claim admin. The window closes the
     // moment settings/app_bootstrapped is written (by that same account).
-    function bootstrapOpen() {
-      return !exists(/databases/$(database)/documents/settings/app_bootstrapped);
-    }
+    function bootstrapOpen() { return !exists(/databases/$(database)/documents/settings/app_bootstrapped); }
+
+    // Size/shape checks. Fields may be absent or null where marked optional.
+    function str(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+    function optStr(v, max) { return v == null || (v is string && v.size() <= max); }
+    function num(v, min, max) { return v is number && v >= min && v <= max; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     // ------------------------------------------------------------ users ----
     match /users/{uid} {
+      function validProfile(d) {
+        return str(d.fullName, 1, 60)
+          && optStr(d.get('phone', null), 20)
+          && optStr(d.get('studentNumber', null), 20)
+          && str(d.email, 3, 120);
+      }
+      // Anti-spam: placeOrder stamps lastOrderAt with the server time, at
+      // most once every 30 s; order creation requires that fresh stamp.
+      function stampsOrderTime() {
+        return request.resource.data.lastOrderAt == request.time
+          && (!('lastOrderAt' in resource.data)
+              || request.time > resource.data.lastOrderAt + duration.value(30, 's'));
+      }
+
       // Your own profile (even when deactivated, so the app can see the
       // flag) and admins. Names shown elsewhere are denormalized onto
       // orders/reviews, so nobody else needs to read profiles.
@@ -49,57 +68,125 @@ service cloud.firestore {
       // (and must immediately write the bootstrap marker to close the window).
       // Customers must use the campus domain.
       allow create: if signedIn() && uid == me()
+        && request.resource.data.keys().hasOnly(
+             ['email', 'role', 'fullName', 'phone', 'studentNumber', 'isActive', 'createdAt'])
+        && validProfile(request.resource.data)
+        && request.resource.data.email.lower() == request.auth.token.email.lower()
+        && request.resource.data.isActive == true
         && request.resource.data.role in ['customer', 'vendor', 'admin']
         && (request.resource.data.role != 'admin' || bootstrapOpen())
         && (request.resource.data.role != 'customer'
             || request.resource.data.email.matches('.*@lpunetwork\\.edu\\.ph'));
-      // Role can never be changed through the client afterwards; admin
-      // manages isActive.
-      allow update: if (uid == me()
-                        && !request.resource.data.diff(resource.data).affectedKeys()
-                              .hasAny(['role', 'isActive']))
-                    || isAdmin();
+      // Only fields being CHANGED are checked, so an older profile with odd
+      // data can still order (placeOrder stamps lastOrderAt here).
+      function validChanges() {
+        return (!changed().hasAny(['fullName']) || str(request.resource.data.fullName, 1, 60))
+          && (!changed().hasAny(['phone']) || optStr(request.resource.data.phone, 20))
+          && (!changed().hasAny(['studentNumber']) || optStr(request.resource.data.studentNumber, 20))
+          && (!changed().hasAny(['email']) || str(request.resource.data.email, 3, 120));
+      }
+      // Self: only your name/phone/student number (and the order stamp).
+      // Email, role and isActive are not yours to change.
+      allow update: if uid == me() && signedIn()
+        && changed().hasOnly(['fullName', 'phone', 'studentNumber', 'lastOrderAt'])
+        && validChanges()
+        && (!changed().hasAny(['lastOrderAt']) || stampsOrderTime());
+      allow update: if isAdmin() && validChanges();
       allow delete: if isAdmin();
     }
 
     // --------------------------------------------------------- vendors -----
     match /vendors/{vendorId} {
+      function validStall(d) {
+        return str(d.name, 1, 60)
+          && optStr(d.get('description', null), 300)
+          && optStr(d.get('gcashNumber', null), 20)
+          && optStr(d.get('gcashName', null), 60)
+          && optStr(d.get('pickupPoint', null), 120)
+          && optStr(d.get('logoUrl', null), 300000)
+          && d.get('isOpen', false) is bool
+          && num(d.get('prepMinutes', 10), 1, 120)
+          && d.get('hours', {}) is map && d.get('hours', {}).size() <= 7;
+      }
       allow read: if signedIn();
       // Owner creates their own stall doc (during vendor signup), unverified.
       // Admin may also create one for a user they turn into a stall owner.
-      allow create: if (isVendor() && request.resource.data.ownerId == me()
-                        && request.resource.data.isVerified == false)
-                    || isAdmin();
+      allow create: if validStall(request.resource.data)
+        && ((isVendor() && request.resource.data.ownerId == me()
+             && request.resource.data.isVerified == false)
+            || isAdmin());
       // Owner edits everything except verification and the rating
-      // aggregates; admin may edit anything.
-      allow update: if (signedIn() && resource.data.ownerId == me()
-                        && !request.resource.data.diff(resource.data).affectedKeys()
-                              .hasAny(['isVerified', 'ownerId', 'ratingSum', 'ratingCount']))
-                    || isAdmin();
-      // A review (batched with this write) bumps the aggregates: exactly one
-      // more review worth 1-5 stars, nothing else touched.
+      // aggregates; admin may edit anything (still validated).
+      allow update: if validStall(request.resource.data)
+        && ((signedIn() && resource.data.ownerId == me()
+             && !changed().hasAny(['isVerified', 'ownerId', 'ratingSum', 'ratingCount', 'lastReviewId']))
+            || isAdmin());
+      // A review bumps the aggregates in the same batch: the batch must create
+      // reviews/{lastReviewId} (by me, for this stall), and the sum moves by
+      // exactly that review's stars. No review, no bump; no reusing one.
       allow update: if signedIn()
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['ratingSum', 'ratingCount'])
+        && changed().hasOnly(['ratingSum', 'ratingCount', 'lastReviewId'])
+        && !exists(/databases/$(database)/documents/reviews/$(request.resource.data.lastReviewId))
+        && existsAfter(/databases/$(database)/documents/reviews/$(request.resource.data.lastReviewId))
+        && getAfter(/databases/$(database)/documents/reviews/$(request.resource.data.lastReviewId)).data.vendorId == vendorId
+        && getAfter(/databases/$(database)/documents/reviews/$(request.resource.data.lastReviewId)).data.customerId == me()
         && request.resource.data.ratingCount == resource.data.get('ratingCount', 0) + 1
-        && request.resource.data.ratingSum - resource.data.get('ratingSum', 0) >= 1
-        && request.resource.data.ratingSum - resource.data.get('ratingSum', 0) <= 5;
+        && request.resource.data.ratingSum == resource.data.get('ratingSum', 0)
+             + getAfter(/databases/$(database)/documents/reviews/$(request.resource.data.lastReviewId)).data.rating;
       allow delete: if isAdmin();
 
       // -------------------------------------------- products / categories --
       match /products/{productId} {
+        function validProduct(d) {
+          return str(d.name, 1, 80)
+            && optStr(d.get('description', null), 300)
+            && num(d.price, 0.01, 100000)
+            && (d.get('stockQty', null) == null
+                || (d.stockQty is int && d.stockQty >= 0 && d.stockQty <= 100000))
+            && d.isAvailable is bool
+            && optStr(d.get('imageUrl', null), 300000)
+            && optStr(d.get('categoryId', null), 100);
+        }
+        // The order this stock change belongs to.
+        function stockOrder() { return /databases/$(database)/documents/orders/$(request.resource.data.lastStockOrder); }
+
         allow read: if signedIn();
-        allow write: if signedIn() && (ownsStall(vendorId) || isAdmin());
-        // Checkout takes stock and cancel/reject puts it back, written by the
-        // customer: only stockQty may change, and never below zero.
+        allow create, update: if (ownsStall(vendorId) || isAdmin())
+          && validProduct(request.resource.data);
+        allow delete: if ownsStall(vendorId) || isAdmin();
+
+        // Students move stock only together with an order, by exactly that
+        // order's quantity: taking it when the order is created in the same
+        // transaction, returning it when they cancel that order.
         allow update: if signedIn()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stockQty'])
+          && changed().hasOnly(['stockQty', 'lastStockOrder'])
           && request.resource.data.stockQty is int
-          && request.resource.data.stockQty >= 0;
+          && request.resource.data.stockQty >= 0
+          && (
+            // take: the order is being created right now, by me, at this stall
+            (!exists(stockOrder())
+              && existsAfter(stockOrder())
+              && getAfter(stockOrder()).data.customerId == me()
+              && getAfter(stockOrder()).data.vendorId == vendorId
+              && num(getAfter(stockOrder()).data.stockTaken[productId], 1, 99)
+              && request.resource.data.stockQty
+                   == resource.data.stockQty - getAfter(stockOrder()).data.stockTaken[productId])
+            ||
+            // give back: I'm cancelling my order, which hadn't released yet
+            (exists(stockOrder())
+              && get(stockOrder()).data.customerId == me()
+              && get(stockOrder()).data.vendorId == vendorId
+              && get(stockOrder()).data.get('stockReleased', false) == false
+              && getAfter(stockOrder()).data.stockReleased == true
+              && request.resource.data.stockQty
+                   == resource.data.stockQty + get(stockOrder()).data.stockTaken[productId])
+          );
       }
       match /categories/{categoryId} {
         allow read: if signedIn();
-        allow write: if signedIn() && (ownsStall(vendorId) || isAdmin());
+        allow create, update: if (ownsStall(vendorId) || isAdmin())
+          && str(request.resource.data.name, 1, 40);
+        allow delete: if ownsStall(vendorId) || isAdmin();
       }
     }
 
@@ -121,64 +208,96 @@ service cloud.firestore {
              == (request.resource.data.paymentMethod == 'cash' ? 'accepted' : 'awaiting_payment')
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
-        && request.resource.data.subtotal is number
-        && request.resource.data.subtotal >= 0
-        && request.resource.data.discount is number
-        && request.resource.data.discount >= 0
-        && request.resource.data.discount <= request.resource.data.subtotal
+        && request.resource.data.items.size() <= 50
+        && num(request.resource.data.subtotal, 0, 1000000)
+        && num(request.resource.data.discount, 0, request.resource.data.subtotal)
         && math.abs(request.resource.data.total
              - (request.resource.data.subtotal - request.resource.data.discount)) < 0.01
         && request.resource.data.receiptUrl == null
         && request.resource.data.get('refundStatus', null) == null
-        && get(/databases/$(database)/documents/vendors/$(request.resource.data.vendorId))
-             .data.isVerified == true;
+        && request.resource.data.get('stockReleased', false) == false
+        && request.resource.data.get('stockTaken', {}) is map
+        && optStr(request.resource.data.get('note', null), 200)
+        && optStr(request.resource.data.get('customerName', null), 60)
+        && optStr(request.resource.data.get('promoCode', null), 20)
+        // anti-spam: this transaction stamps my lastOrderAt (max 1 / 30 s)
+        && getAfter(/databases/$(database)/documents/users/$(me())).data.lastOrderAt == request.time
+        // the stall must be verified and switched on
+        && get(/databases/$(database)/documents/vendors/$(request.resource.data.vendorId)).data.isVerified == true
+        && get(/databases/$(database)/documents/vendors/$(request.resource.data.vendorId)).data.isOpen == true;
 
       // Customer may cancel an unpaid order, or submit a GCash proof
-      // (exactly the four fields submitProof writes, nothing else).
+      // (exactly the fields each action writes, nothing else).
       allow update: if signedIn() && resource.data.customerId == me()
         && (
           (request.resource.data.status == 'cancelled'
             && resource.data.status in ['awaiting_payment', 'proof_submitted']
+            && changed().hasOnly(['status', 'rejectReason', 'stockReleased', 'refundStatus'])
+            && optStr(request.resource.data.get('rejectReason', null), 200)
             // A customer may flag a refund as owed, never as paid out.
             && request.resource.data.get('refundStatus', null) in [null, 'owed'])
           ||
           (request.resource.data.status == 'proof_submitted'
             && resource.data.status == 'awaiting_payment'
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['receiptUrl', 'receiptStatus', 'status', 'paymentStatus']))
+            && changed().hasOnly(['receiptUrl', 'receiptStatus', 'status', 'paymentStatus'])
+            && str(request.resource.data.receiptUrl, 1, 700000))
         );
 
-      // Vendor/admin progress the order through the flow.
-      allow update: if isAdmin() || ownsStall(resource.data.vendorId);
+      // Stall/admin progress the order through the flow, but the stall can't
+      // rewrite who ordered, what, or for how much.
+      allow update: if isAdmin()
+        || (ownsStall(resource.data.vendorId)
+            && !changed().hasAny(['customerId', 'customerName', 'vendorId', 'items',
+                                  'subtotal', 'discount', 'total', 'paymentMethod',
+                                  'orderNumber', 'createdAt', 'stockTaken', 'queueNumber'])
+            && optStr(request.resource.data.get('rejectReason', null), 200)
+            && optStr(request.resource.data.get('receiptNote', null), 200));
     }
 
     // -------------------------------------------------------- favorites ----
+    // favorites/{uid}_{vendorId}: one per student per stall, private.
     match /favorites/{favId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.customerId == me();
-      allow update, delete: if signedIn() && resource.data.customerId == me();
+      allow read: if signedIn() && resource.data.customerId == me();
+      allow create: if signedIn()
+        && request.resource.data.customerId == me()
+        && favId == me() + '_' + request.resource.data.vendorId
+        && request.resource.data.keys().hasOnly(['customerId', 'vendorId', 'createdAt']);
+      allow delete: if signedIn() && resource.data.customerId == me();
     }
 
     // ------------------------------------------------------- promotions ----
     match /promotions/{promoId} {
+      function validPromo(d) {
+        return d.code is string && d.code.matches('[A-Z0-9]{3,20}')
+          && d.discountType in ['percent', 'fixed']
+          && (d.discountType == 'percent'
+                ? num(d.discountValue, 1, 100)
+                : num(d.discountValue, 1, 10000))
+          && (d.get('minOrder', null) == null || num(d.minOrder, 0, 100000))
+          && d.isActive is bool;
+      }
       allow read: if signedIn();
       // Admins write platform-wide promos; stalls write promos for their own
-      // stall (vendorId must point at a stall they own).
-      allow create: if isAdmin()
-        || (isVendor()
-            && request.resource.data.get('vendorId', '') != ''
-            && get(/databases/$(database)/documents/vendors/$(request.resource.data.vendorId)).data.ownerId == me());
-      allow update, delete: if isAdmin()
-        || (isVendor() && resource.data.vendorId != null && ownsStall(resource.data.vendorId));
+      // stall (vendorId must point at a stall they own) and can never move a
+      // promo to another stall or make it platform-wide.
+      allow create: if validPromo(request.resource.data)
+        && (isAdmin()
+            || (request.resource.data.get('vendorId', null) != null
+                && ownsStall(request.resource.data.vendorId)));
+      allow update: if validPromo(request.resource.data)
+        && (isAdmin()
+            || (resource.data.get('vendorId', null) != null
+                && ownsStall(resource.data.vendorId)
+                && request.resource.data.vendorId == resource.data.vendorId));
+      allow delete: if isAdmin()
+        || (resource.data.get('vendorId', null) != null && ownsStall(resource.data.vendorId));
     }
 
     // --------------------------------------------------------- reviews -----
     // reviews/{orderId}: one per order, by that order's customer, after
     // pickup. Final once written so the stall's aggregates stay correct.
     match /reviews/{reviewId} {
-      function reviewedOrder() {
-        return get(/databases/$(database)/documents/orders/$(reviewId)).data;
-      }
+      function reviewedOrder() { return get(/databases/$(database)/documents/orders/$(reviewId)).data; }
       allow read: if true;
       allow create: if signedIn()
         && request.resource.data.customerId == me()
@@ -188,16 +307,26 @@ service cloud.firestore {
         && request.resource.data.vendorId == reviewedOrder().vendorId
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5;
+        && request.resource.data.rating <= 5
+        && optStr(request.resource.data.get('comment', null), 500)
+        && optStr(request.resource.data.get('customerName', null), 60);
       // The stall may add/edit its public reply, nothing else.
       allow update: if ownsStall(resource.data.vendorId)
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['reply', 'repliedAt']);
+        && changed().hasOnly(['reply', 'repliedAt'])
+        && optStr(request.resource.data.get('reply', null), 300);
       allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------- settings -----
     match /settings/{docId} {
+      function validSetting(d) {
+        return docId == 'announcement'
+            ? (str(d.message, 0, 280) && d.active is bool
+               && d.get('level', 'info') in ['info', 'warning'])
+          : docId == 'platform_gcash'
+            ? (str(d.number, 0, 20) && str(d.name, 0, 60))
+          : true;
+      }
       // The bootstrap marker is world-readable (it contains only a timestamp)
       // so the register screen can tell signed-out visitors whether the
       // first-account-admin window is still open.
@@ -205,27 +334,29 @@ service cloud.firestore {
       // The bootstrap marker is created exactly once and is then immutable —
       // no rule allows its update/delete, so the admin-claim window can never
       // be reopened, even by an admin.
-      allow create: if (docId == 'app_bootstrapped' && bootstrapOpen()) || isAdmin();
-      allow update, delete: if isAdmin() && docId != 'app_bootstrapped';
+      allow create: if (docId == 'app_bootstrapped' && bootstrapOpen())
+        || (isAdmin() && validSetting(request.resource.data));
+      allow update: if isAdmin() && docId != 'app_bootstrapped'
+        && validSetting(request.resource.data);
+      allow delete: if isAdmin() && docId != 'app_bootstrapped';
     }
 
     // -------------------------------------------------------- counters -----
-    // Queue-number counters are written by the client placeOrder transaction.
     // counters/vendor_{vendorId}: the daily queue number (count/day), bumped
     // by placeOrder, plus `active` (orders the stall is working through),
     // published by the stall's own app for students' wait estimates.
     match /counters/{docId} {
       function ownsCounter() {
-        return docId.matches('vendor_.+')
-          && ownsStall(docId.split('_')[1]);
+        return docId.matches('vendor_.+') && ownsStall(docId.split('_')[1]);
       }
-      // Queue numbers only ever go up by one, or restart at 1 on a new day.
-      // The doc may exist without count/day (the stall's app created it to
-      // publish `active` before the first order), so read them with
-      // defaults: a missing field is a rules ERROR, which denies the write.
+      // Queue numbers only ever go up by one, or restart at 1 on a new day,
+      // and only inside an order transaction (which carries my fresh
+      // lastOrderAt stamp, so at most one bump per 30 s). The doc may exist
+      // without count/day (the stall's app created it to publish `active`),
+      // so read them with defaults: a missing field is a rules ERROR.
       function nextQueueNumber() {
-        return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['count', 'day'])
+        return changed().hasOnly(['count', 'day'])
+          && getAfter(/databases/$(database)/documents/users/$(me())).data.get('lastOrderAt', null) == request.time
           && (request.resource.data.count == resource.data.get('count', 0) + 1
               || (request.resource.data.count == 1
                   && (!('day' in resource.data)
@@ -235,12 +366,12 @@ service cloud.firestore {
       allow create: if signedIn()
         && (ownsCounter()
             || (request.resource.data.keys().hasOnly(['count', 'day'])
-                && request.resource.data.count == 1));
+                && request.resource.data.count == 1
+                && getAfter(/databases/$(database)/documents/users/$(me())).data.get('lastOrderAt', null) == request.time));
       allow update: if signedIn()
         && (nextQueueNumber()
-            || (ownsCounter()
-                && request.resource.data.diff(resource.data).affectedKeys()
-                     .hasOnly(['active', 'activeAt'])));
+            || (ownsCounter() && changed().hasOnly(['active', 'activeAt'])
+                && num(request.resource.data.active, 0, 100000)));
     }
   }
 }

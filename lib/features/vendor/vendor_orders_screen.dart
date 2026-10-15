@@ -7,6 +7,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/order.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 class VendorOrdersScreen extends ConsumerStatefulWidget {
@@ -341,6 +342,7 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
           controller: controller,
           autofocus: true,
           maxLines: 3,
+          maxLength: Limits.note,
           decoration: InputDecoration(labelText: label),
         ),
         actions: [
@@ -349,7 +351,16 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () {
+              // Shown to the student, so no abuse and a real reason.
+              final err = validateText(controller.text,
+                  max: Limits.note, required: true, min: 3, label: 'Reason');
+              if (err != null) {
+                showSnack(context, err, error: true);
+                return;
+              }
+              Navigator.pop(context, controller.text);
+            },
             child: const Text('Save'),
           ),
         ],

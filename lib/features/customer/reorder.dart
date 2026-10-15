@@ -10,7 +10,19 @@ import '../../shared/widgets.dart';
 /// "Order again": refills the cart from a past order at today's menu prices,
 /// skipping items that are gone, unavailable or out of stock, then opens the
 /// cart so the student can review before checking out.
+bool _reordering = false; // ignore double-taps while one is running
+
 Future<void> reorder(BuildContext context, WidgetRef ref, Order order) async {
+  if (_reordering) return;
+  _reordering = true;
+  try {
+    await _reorder(context, ref, order);
+  } finally {
+    _reordering = false;
+  }
+}
+
+Future<void> _reorder(BuildContext context, WidgetRef ref, Order order) async {
   final cart = ref.read(cartProvider.notifier);
   if (cart.vendorId != null && cart.vendorId != order.vendorId) {
     final ok = await confirmDialog(

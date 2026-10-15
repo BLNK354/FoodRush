@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
@@ -6,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
+import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
 String _roleLabel(String role) => switch (role) {
@@ -76,6 +78,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
         TextField(
           controller: _search,
           onChanged: (_) => setState(() {}),
+          inputFormatters: [LengthLimitingTextInputFormatter(Limits.search)],
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.search),
             hintText: 'Search name, email or student number',
@@ -213,8 +216,16 @@ class _EditUserDialogState extends State<_EditUserDialog> {
   bool get _needsStall => _role == kRoleVendor && _hasStall == false;
 
   Future<void> _save() async {
-    if (_fullName.text.trim().isEmpty) {
-      showSnack(context, 'Name is required.', error: true);
+    final err = firstError([
+      validatePersonName(_fullName.text),
+      validatePhone(_phone.text),
+      validateStudentNumber(_studentNumber.text),
+      if (_needsStall)
+        validateText(_stallName.text,
+            max: Limits.name, required: true, min: 2, label: 'Stall name'),
+    ]);
+    if (err != null) {
+      showSnack(context, err, error: true);
       return;
     }
     if (_needsStall && _stallName.text.trim().isEmpty) {
@@ -262,15 +273,27 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                 style: TextStyle(color: FrColors.muted),
               ),
               const SizedBox(height: 16),
-              FrTextField(controller: _fullName, label: 'Full name'),
+              FrTextField(
+                controller: _fullName,
+                label: 'Full name',
+                maxLength: Limits.name,
+                validator: validatePersonName,
+              ),
               const SizedBox(height: 12),
               FrTextField(
                 controller: _phone,
                 label: 'Mobile number',
                 keyboardType: TextInputType.phone,
+                maxLength: Limits.phone,
+                validator: validatePhone,
               ),
               const SizedBox(height: 12),
-              FrTextField(controller: _studentNumber, label: 'Student number'),
+              FrTextField(
+                controller: _studentNumber,
+                label: 'Student number',
+                maxLength: Limits.studentNumber,
+                validator: validateStudentNumber,
+              ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 initialValue: _role,
@@ -293,6 +316,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                 FrTextField(
                   controller: _stallName,
                   label: 'Stall name',
+                  maxLength: Limits.name,
                   hint: 'Creates an unverified stall',
                 ),
                 const SizedBox(height: 4),

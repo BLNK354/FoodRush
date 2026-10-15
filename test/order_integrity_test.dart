@@ -32,6 +32,17 @@ void main() {
       expect(tampered(total: 1).integrityIssues(), contains("Total doesn't add up"));
     });
 
+    test('flags stock taken that does not match the items', () {
+      final o = Order.fromMap('y', {
+        'subtotal': 50, 'discount': 0, 'total': 50, 'status': kOrderAccepted,
+        'paymentMethod': kPayCash, 'stockTaken': {'adobo': 20},
+        'items': [
+          {'productId': 'adobo', 'name': 'Adobo', 'unitPrice': 50, 'qty': 1, 'lineTotal': 50},
+        ],
+      });
+      expect(o.integrityIssues().join(), contains('Took 20 from stock but ordered 1'));
+    });
+
     test('flags items missing from the menu', () {
       expect(tampered().integrityIssues({}).join(), contains('not on your menu'));
     });

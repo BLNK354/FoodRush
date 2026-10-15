@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/constants.dart';
 import '../core/theme.dart';
@@ -381,6 +382,13 @@ class FrTextField extends StatelessWidget {
   final Widget? suffix;
   final bool enabled;
 
+  /// Hard cap on what can be typed/pasted (null = no cap).
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Called when the user presses Enter in this field.
+  final ValueChanged<String>? onSubmitted;
+
   const FrTextField({
     super.key,
     required this.controller,
@@ -392,6 +400,9 @@ class FrTextField extends StatelessWidget {
     this.maxLines = 1,
     this.suffix,
     this.enabled = true,
+    this.maxLength,
+    this.inputFormatters,
+    this.onSubmitted,
   });
 
   @override
@@ -401,8 +412,22 @@ class FrTextField extends StatelessWidget {
       obscureText: obscure,
       keyboardType: keyboardType,
       validator: validator,
+      // Show problems as soon as the user has typed, not only on submit.
+      autovalidateMode: validator == null
+          ? AutovalidateMode.disabled
+          : AutovalidateMode.onUserInteraction,
       maxLines: maxLines,
       enabled: enabled,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      onFieldSubmitted: onSubmitted,
+      // A live "12/300" counter only on long free-text fields.
+      buildCounter: (context,
+              {required currentLength, required isFocused, maxLength}) =>
+          maxLength != null && maxLength >= 150 && isFocused
+              ? Text('$currentLength/$maxLength',
+                  style: const TextStyle(fontSize: 11))
+              : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -483,7 +508,11 @@ class FrImage extends StatelessWidget {
 }
 
 void showSnack(BuildContext context, String message, {bool error = false}) {
-  ScaffoldMessenger.of(context).showSnackBar(
+  // Replace, don't queue: tapping a button 8 times used to line up 8
+  // messages that then played for half a minute.
+  ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(
     SnackBar(
       content: Text(message),
       backgroundColor: error ? FrColors.danger : null,

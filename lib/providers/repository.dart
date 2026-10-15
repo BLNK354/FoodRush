@@ -473,6 +473,16 @@ class Repository {
       final countersRef =
           _db.collection(kColCounters).doc('vendor_$vendorId');
       final counterSnap = await tx.get(countersRef);
+      // Anti-spam: the rules allow one order per student every 30 s (via
+      // users/{me}.lastOrderAt); say so nicely instead of "permission denied".
+      final userRef = _db.collection(kColUsers).doc(_uid);
+      final lastOrderAt =
+          ((await tx.get(userRef)).data()?['lastOrderAt'] as Timestamp?)?.toDate();
+      if (lastOrderAt != null &&
+          DateTime.now().difference(lastOrderAt) < kOrderCooldown) {
+        throw Exception('You just placed an order. Please wait '
+            '${kOrderCooldown.inSeconds} seconds before ordering again.');
+      }
 
       final lines = <(DocumentReference<Map<String, dynamic>>, Product, int)>[];
       for (final it in items) {
@@ -533,11 +543,16 @@ class Repository {
       }
 
       // ---- writes ----
+      // Each stock change names this order; the rules check it takes exactly
+      // the order's quantity (so stock can't be vandalised on its own).
+      final stockTaken = <String, int>{};
       for (final (ref, p, qty) in lines) {
         if (p.stockQty != null) {
-          tx.update(ref, {'stockQty': p.stockQty! - qty});
+          stockTaken[p.id] = qty;
+          tx.update(ref, {'stockQty': p.stockQty! - qty, 'lastStockOrder': orderId});
         }
       }
+      tx.update(userRef, {'lastOrderAt': FieldValue.serverTimestamp()});
 
       tx.set(countersRef, {
         'count': queue,
@@ -569,6 +584,7 @@ class Repository {
         'receiptNote': null,
         'createdAt': FieldValue.serverTimestamp(),
         'items': pricedItems,
+        'stockTaken': stockTaken,
       });
     });
 
@@ -770,14 +786,25 @@ class Repository {
     final order = Order.fromMap(snap.id, snap.data()!);
     final batch = _db.batch();
     if (!order.stockReleased) {
-      for (final it in order.items.where((i) => i.stockTracked)) {
+      // Orders from before `stockTaken` existed: the stall/admin can still
+      // restock from the items, but the rules won't let a student, so a
+      // student cancelling such an order leaves stock for the stall to fix.
+      final taken = order.stockTaken.isNotEmpty
+          ? order.stockTaken
+          : order.customerId == _uid
+              ? const <String, int>{}
+              : {
+                  for (final it in order.items.where((i) => i.stockTracked))
+                    it.productId: it.qty,
+                };
+      for (final e in taken.entries) {
         batch.update(
           _db
               .collection(kColVendors)
               .doc(order.vendorId)
               .collection(kColProducts)
-              .doc(it.productId),
-          {'stockQty': FieldValue.increment(it.qty)},
+              .doc(e.key),
+          {'stockQty': FieldValue.increment(e.value), 'lastStockOrder': orderId},
         );
       }
     }
@@ -871,6 +898,9 @@ class Repository {
     batch.update(_db.collection(kColVendors).doc(order.vendorId), {
       'ratingSum': FieldValue.increment(rating),
       'ratingCount': FieldValue.increment(1),
+      // The rules only accept a rating bump that names the review being
+      // created in this same batch.
+      'lastReviewId': order.id,
     });
     await batch.commit();
   }
