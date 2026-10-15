@@ -3,6 +3,23 @@
 # Reads the six FIREBASE_* variables from the environment.
 set -euo pipefail
 
+# Refuse to build without Firebase config: missing values compile in as empty
+# strings and the deployed site is a blank page (Firebase Auth throws on
+# start). Set them in Vercel → Project → Settings → Environment Variables,
+# for the Production (and Preview) environment.
+missing=()
+for var in FIREBASE_API_KEY FIREBASE_PROJECT_ID FIREBASE_APP_ID \
+           FIREBASE_MESSAGING_SENDER_ID FIREBASE_AUTH_DOMAIN \
+           FIREBASE_STORAGE_BUCKET; do
+  if [ -z "${!var:-}" ]; then missing+=("$var"); fi
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo "ERROR: missing Firebase environment variables: ${missing[*]}" >&2
+  echo "Add them in Vercel → Project → Settings → Environment Variables" >&2
+  echo "(Production and Preview), then redeploy." >&2
+  exit 1
+fi
+
 FLUTTER_VERSION="${FLUTTER_VERSION:-3.35.2}"
 FLUTTER_HOME="${HOME}/.flutter-sdk"
 
@@ -30,11 +47,11 @@ flutter pub get
 
 echo "==> Building web (release)..."
 flutter build web --release \
-  --dart-define="FIREBASE_API_KEY=${FIREBASE_API_KEY:-}" \
-  --dart-define="FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}" \
-  --dart-define="FIREBASE_APP_ID=${FIREBASE_APP_ID:-}" \
-  --dart-define="FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID:-}" \
-  --dart-define="FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN:-}" \
-  --dart-define="FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET:-}"
+  --dart-define="FIREBASE_API_KEY=${FIREBASE_API_KEY}" \
+  --dart-define="FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}" \
+  --dart-define="FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
+  --dart-define="FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID}" \
+  --dart-define="FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN}" \
+  --dart-define="FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}"
 
 echo "==> Done. Output in build/web"
