@@ -40,7 +40,6 @@ const Map<String, String> ja = {
   'Stall owner': '屋台オーナー',
   'Staff': 'スタッフ',
   'Full name': '氏名',
-  'Student number (optional)': '学籍番号（任意）',
   'Mobile number (optional)': '携帯電話番号（任意）',
   'Confirm': '確認',
   'Create account': 'アカウント作成',
@@ -189,4 +188,20 @@ const Map<String, String> ja = {
   'Pick it up at {stall}.': '{stall}で受け取ってください。',
   'Notifications on. Keep FoodRush open in a tab to get them.': '通知がオンになりました。通知を受け取るにはFoodRushをタブで開いたままにしてください。',
   'Notifications are blocked. Allow them in your browser settings.': '通知がブロックされています。ブラウザの設定で許可してください。',
+
+  // ---- student number / password
+  'Student number': '学籍番号',
+  'Show password': 'パスワードを表示',
+  'Hide password': 'パスワードを隠す',
+  'Weak': '弱い',
+  'Fair': '普通',
+  'Good': '良い',
+  'Strong': '強い',
+  'Password strength: {level}': 'パスワードの強度：{level}',
+  'Use at least 8 characters': '8文字以上にしてください',
+  'Avoid common or repeated passwords': 'よくある・繰り返しのパスワードは避けてください',
+  'Use 12 or more characters': '12文字以上にしましょう',
+  'Mix upper and lower case': '大文字と小文字を混ぜましょう',
+  'Add a number': '数字を加えましょう',
+  'Add a symbol like ! or #': '! や # などの記号を加えましょう',
 };

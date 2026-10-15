@@ -53,6 +53,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   for (const [key, a] of Object.entries(ACCOUNTS)) {
     await setDoc(doc(f, 'users', uid[key]), {
       email: a.email, role: a.role, fullName: a.name, isActive: true, createdAt: Timestamp.now(),
+      ...(a.role === 'customer' ? { studentNumber: '2024-00001' } : {}),
     });
   }
   await setDoc(doc(f, 'settings/app_bootstrapped'), { bootstrappedAt: Timestamp.now() });

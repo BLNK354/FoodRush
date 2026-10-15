@@ -42,7 +42,6 @@ const Map<String, String> ceb = {
   'Stall owner': 'Tag-iya sa stall',
   'Staff': 'Staff',
   'Full name': 'Tibuok nga ngalan',
-  'Student number (optional)': 'Student number (opsyonal)',
   'Mobile number (optional)': 'Mobile number (opsyonal)',
   'Confirm': 'Usba pag-type',
   'Create account': 'Paghimo og account',
@@ -211,4 +210,20 @@ const Map<String, String> ceb = {
       'Naka-on ang notifications. Ablihi ang FoodRush sa usa ka tab aron makadawat.',
   'Notifications are blocked. Allow them in your browser settings.':
       'Naka-block ang notifications. Tugoti kini sa browser settings.',
+
+  // ---- student number / password
+  'Student number': 'Student number',
+  'Show password': 'Ipakita ang password',
+  'Hide password': 'Tagoa ang password',
+  'Weak': 'Huyang',
+  'Fair': 'Pwede na',
+  'Good': 'Maayo',
+  'Strong': 'Lig-on',
+  'Password strength: {level}': 'Kalig-on sa password: {level}',
+  'Use at least 8 characters': 'Gamit og labing menos 8 ka character',
+  'Avoid common or repeated passwords': 'Likayi ang sagad o balik-balik nga password',
+  'Use 12 or more characters': 'Gamit og 12 o labaw pa nga character',
+  'Mix upper and lower case': 'Sagola ang dagko ug gagmay nga letra',
+  'Add a number': 'Dugangi og numero',
+  'Add a symbol like ! or #': 'Dugangi og simbolo sama sa ! o #',
 };

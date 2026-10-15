@@ -161,7 +161,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SizedBox(height: 14),
                               FrTextField(
                                 controller: _studentNumber,
-                                label: tr('Student number (optional)'),
+                                label: tr('Student number'),
                                 maxLength: Limits.studentNumber,
                                 validator: validateStudentNumber,
                               ),

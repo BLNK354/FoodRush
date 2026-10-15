@@ -533,7 +533,9 @@ String fmtClock(DateTime t) {
       '${t.hour < 12 ? 'AM' : 'PM'}';
 }
 
-class FrTextField extends StatelessWidget {
+/// Text field with the app's styling. Password fields ([obscure]) get a
+/// show/hide eye button automatically.
+class FrTextField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String? hint;
@@ -568,21 +570,48 @@ class FrTextField extends StatelessWidget {
   });
 
   @override
+  State<FrTextField> createState() => _FrTextFieldState();
+}
+
+class _FrTextFieldState extends State<FrTextField> {
+  late bool _hidden = widget.obscure;
+
+  @override
   Widget build(BuildContext context) {
+    final eye = widget.obscure
+        ? IconButton(
+            tooltip: _hidden ? tr('Show password') : tr('Hide password'),
+            onPressed: () => setState(() => _hidden = !_hidden),
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (c, a) =>
+                  ScaleTransition(scale: a, child: c),
+              child: Icon(
+                _hidden
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                key: ValueKey(_hidden),
+              ),
+            ),
+          )
+        : null;
     return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      keyboardType: keyboardType,
-      validator: validator,
+      controller: widget.controller,
+      obscureText: _hidden,
+      // Browsers' password managers and spellcheck behave on secrets.
+      autocorrect: !widget.obscure,
+      enableSuggestions: !widget.obscure,
+      keyboardType: widget.keyboardType,
+      validator: widget.validator,
       // Show problems as soon as the user has typed, not only on submit.
-      autovalidateMode: validator == null
+      autovalidateMode: widget.validator == null
           ? AutovalidateMode.disabled
           : AutovalidateMode.onUserInteraction,
-      maxLines: maxLines,
-      enabled: enabled,
-      maxLength: maxLength,
-      inputFormatters: inputFormatters,
-      onFieldSubmitted: onSubmitted,
+      maxLines: widget.maxLines,
+      enabled: widget.enabled,
+      maxLength: widget.maxLength,
+      inputFormatters: widget.inputFormatters,
+      onFieldSubmitted: widget.onSubmitted,
       // A live "12/300" counter only on long free-text fields.
       buildCounter:
           (context, {required currentLength, required isFocused, maxLength}) =>
@@ -593,10 +622,10 @@ class FrTextField extends StatelessWidget {
                 )
               : null,
       decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        suffixIcon: suffix,
-        alignLabelWithHint: maxLines > 1,
+        labelText: widget.label,
+        hintText: widget.hint,
+        suffixIcon: widget.suffix ?? eye,
+        alignLabelWithHint: widget.maxLines > 1,
       ),
     );
   }

@@ -40,7 +40,6 @@ const Map<String, String> zh = {
   'Stall owner': '摊主',
   'Staff': '员工',
   'Full name': '姓名',
-  'Student number (optional)': '学号（选填）',
   'Mobile number (optional)': '手机号（选填）',
   'Confirm': '确认',
   'Create account': '创建账号',
@@ -189,4 +188,20 @@ const Map<String, String> zh = {
   'Pick it up at {stall}.': '请到 {stall} 取餐。',
   'Notifications on. Keep FoodRush open in a tab to get them.': '通知已开启。请在浏览器标签页中保持 FoodRush 打开以接收通知。',
   'Notifications are blocked. Allow them in your browser settings.': '通知已被阻止。请在浏览器设置中允许通知。',
+
+  // ---- student number / password
+  'Student number': '学号',
+  'Show password': '显示密码',
+  'Hide password': '隐藏密码',
+  'Weak': '弱',
+  'Fair': '一般',
+  'Good': '良好',
+  'Strong': '强',
+  'Password strength: {level}': '密码强度：{level}',
+  'Use at least 8 characters': '至少使用 8 个字符',
+  'Avoid common or repeated passwords': '避免使用常见或重复的密码',
+  'Use 12 or more characters': '使用 12 个或更多字符',
+  'Mix upper and lower case': '混合使用大小写字母',
+  'Add a number': '加入数字',
+  'Add a symbol like ! or #': '加入 ! 或 # 等符号',
 };

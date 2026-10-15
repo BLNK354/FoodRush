@@ -153,11 +153,14 @@ String? validatePhone(String? v, {bool required = false, String label = 'Mobile 
 }
 
 /// Student number: digits and dashes, e.g. 2023-2-01664.
+/// Students must give one (the stall checks it at pickup); the security
+/// rules enforce the same 4-20 digits-and-dashes shape.
 String? validateStudentNumber(String? v) {
   final s = (v ?? '').trim();
-  if (s.isEmpty) return null;
+  if (s.isEmpty) return 'Student number is required';
   if (s.length > Limits.studentNumber) return 'Student number is too long';
   if (!RegExp(r'^[0-9-]+$').hasMatch(s)) return 'Digits and dashes only';
+  if (s.replaceAll('-', '').length < 4) return 'Student number is too short';
   return null;
 }
 

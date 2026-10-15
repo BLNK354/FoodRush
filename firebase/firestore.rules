@@ -57,10 +57,13 @@ service cloud.firestore {
 
     // ------------------------------------------------------------ users ----
     match /users/{uid} {
+      function studentNo(v) { return v is string && v.matches('^[0-9-]{4,20}$'); }
+      // Students must carry a student number; other roles may omit it.
       function validProfile(d) {
         return str(d.fullName, 1, 60)
           && optStr(d.get('phone', null), 20)
           && optStr(d.get('studentNumber', null), 20)
+          && (d.role != 'customer' || studentNo(d.get('studentNumber', null)))
           && str(d.email, 3, 120);
       }
       // Anti-spam: placeOrder stamps lastOrderAt with the server time, at
@@ -93,7 +96,10 @@ service cloud.firestore {
       function validChanges() {
         return (!changed().hasAny(['fullName']) || str(request.resource.data.fullName, 1, 60))
           && (!changed().hasAny(['phone']) || optStr(request.resource.data.phone, 20))
-          && (!changed().hasAny(['studentNumber']) || optStr(request.resource.data.studentNumber, 20))
+          && (!changed().hasAny(['studentNumber'])
+              || (resource.data.role == 'customer'
+                  ? studentNo(request.resource.data.studentNumber)
+                  : optStr(request.resource.data.studentNumber, 20)))
           && (!changed().hasAny(['email']) || str(request.resource.data.email, 3, 120));
       }
       // Self: only your name/phone/student number (and the order stamp).

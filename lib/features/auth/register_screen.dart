@@ -8,6 +8,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../shared/validation.dart';
+import '../../shared/password_strength.dart';
 import '../../shared/premium.dart';
 import '../../shared/widgets.dart';
 
@@ -236,7 +237,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               const SizedBox(height: 16),
               FrTextField(
                 controller: _studentNumber,
-                label: tr('Student number (optional)'),
+                label: tr('Student number'),
+                hint: '2024-12345',
                 keyboardType: TextInputType.text,
                 maxLength: Limits.studentNumber,
                 validator: validateStudentNumber,
@@ -278,6 +280,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
               ],
             ),
+            PasswordStrengthMeter(controller: _password),
 
             if (_role == kRoleVendor) ...[
               const SizedBox(height: 20),
