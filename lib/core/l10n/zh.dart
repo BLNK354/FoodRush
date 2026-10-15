@@ -204,4 +204,12 @@ const Map<String, String> zh = {
   'Mix upper and lower case': '混合使用大小写字母',
   'Add a number': '加入数字',
   'Add a symbol like ! or #': '加入 ! 或 # 等符号',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      '正在向 {email} 发送链接…',
+  'Sending…':
+      '发送中…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      '已于 {time} 由 {sender} 发出。收件箱里没有？请查看垃圾邮件或推广邮件。',
 };

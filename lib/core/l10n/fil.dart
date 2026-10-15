@@ -227,4 +227,12 @@ const Map<String, String> fil = {
   'Mix upper and lower case': 'Paghaluin ang malaki at maliit na titik',
   'Add a number': 'Magdagdag ng numero',
   'Add a symbol like ! or #': 'Magdagdag ng simbolo gaya ng ! o #',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      'Nagpapadala ng link sa {email}…',
+  'Sending…':
+      'Nagpapadala…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      'Naipadala nang {time} mula sa {sender}. Wala sa inbox? Silipin ang Spam o Promotions.',
 };

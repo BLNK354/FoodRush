@@ -226,4 +226,12 @@ const Map<String, String> ceb = {
   'Mix upper and lower case': 'Sagola ang dagko ug gagmay nga letra',
   'Add a number': 'Dugangi og numero',
   'Add a symbol like ! or #': 'Dugangi og simbolo sama sa ! o #',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      'Nagpadala og link sa {email}…',
+  'Sending…':
+      'Nagpadala…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      'Napadala sa {time} gikan sa {sender}. Wala sa inbox? Tan-awa ang Spam o Promotions.',
 };

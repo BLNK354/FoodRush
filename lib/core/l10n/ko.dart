@@ -204,4 +204,12 @@ const Map<String, String> ko = {
   'Mix upper and lower case': '대문자와 소문자를 섞어 쓰세요',
   'Add a number': '숫자를 추가하세요',
   'Add a symbol like ! or #': '! 또는 # 같은 기호를 추가하세요',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      '{email}(으)로 링크를 보내는 중…',
+  'Sending…':
+      '보내는 중…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      '{time}에 {sender}에서 보냈어요. 받은편지함에 없나요? 스팸함이나 프로모션함을 확인하세요.',
 };

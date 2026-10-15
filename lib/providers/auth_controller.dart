@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
+import '../shared/browser/browser.dart' as browser;
 import '../models/user.dart';
 import 'repository.dart';
 
@@ -245,6 +246,7 @@ class AuthController extends Notifier<AuthData> {
       // Prove they own the inbox (the LPU gate is meaningless otherwise).
       try {
         await cred.user!.sendEmailVerification();
+        markVerificationSent(cred.user!.uid);
       } catch (_) {
         // Rate-limited or offline: the verify screen offers "Resend".
       }
@@ -319,10 +321,24 @@ class AuthController extends Notifier<AuthData> {
     return verified;
   }
 
+  /// When this browser last sent [uid] a verification email, so the verify
+  /// screen neither claims a link was sent when none was (accounts made
+  /// before verification existed) nor re-sends on every reload.
+  static DateTime? verificationSentAt(String uid) {
+    final ms = int.tryParse(browser.readPref('verifySent.$uid') ?? '');
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  static void markVerificationSent(String uid) => browser.writePref(
+      'verifySent.$uid', '${DateTime.now().millisecondsSinceEpoch}');
+
   /// Sends the verification email again. Returns an error message or null.
   Future<String?> resendVerification() async {
     try {
-      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return 'Not signed in.';
+      await user.sendEmailVerification();
+      markVerificationSent(user.uid);
       return null;
     } on FirebaseAuthException catch (e) {
       return e.code == 'too-many-requests'

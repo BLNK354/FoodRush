@@ -225,4 +225,12 @@ const Map<String, String> es = {
   'Mix upper and lower case': 'Combina mayúsculas y minúsculas',
   'Add a number': 'Añade un número',
   'Add a symbol like ! or #': 'Añade un símbolo como ! o #',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      'Enviando un enlace a {email}…',
+  'Sending…':
+      'Enviando…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      'Enviado a las {time} desde {sender}. ¿No está en tu bandeja? Revisa Spam o Promociones.',
 };

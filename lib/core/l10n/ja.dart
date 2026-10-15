@@ -204,4 +204,12 @@ const Map<String, String> ja = {
   'Mix upper and lower case': '大文字と小文字を混ぜましょう',
   'Add a number': '数字を加えましょう',
   'Add a symbol like ! or #': '! や # などの記号を加えましょう',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      '{email} にリンクを送信中…',
+  'Sending…':
+      '送信中…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      '{time} に {sender} から送信しました。受信トレイにない場合は迷惑メールやプロモーションをご確認ください。',
 };
