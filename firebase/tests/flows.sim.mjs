@@ -1,4 +1,4 @@
-// Temporary end-to-end replay of the app's real write flows (mirrors
+// End-to-end replay of the app's real write flows (mirrors
 // Repository.placeOrder / cancelOrder / reviewPayment / submitReview).
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
@@ -33,7 +33,7 @@ async function seed(counter) {
 }
 
 async function placeOrder(id, lines, payment = 'cash') {
-  const f = env.authenticatedContext('cust').firestore();
+  const f = env.authenticatedContext('cust', { email_verified: true }).firestore();
   await runTransaction(f, async (tx) => {
     const counterRef = doc(f, 'counters/vendor_v1');
     const c = await tx.get(counterRef);
@@ -73,7 +73,7 @@ async function placeOrder(id, lines, payment = 'cash') {
 
 // cancel/reject: release stockTaken with increment + lastStockOrder, same batch.
 async function endOrder(uid, id, patch) {
-  const f = env.authenticatedContext(uid).firestore();
+  const f = env.authenticatedContext(uid, { email_verified: true }).firestore();
   const o = (await getDoc(doc(f, 'orders', id))).data();
   const b = writeBatch(f);
   if (!o.stockReleased) {
@@ -126,7 +126,7 @@ await seed('none');
 await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'orders/done'), {
   customerId: 'cust', vendorId: 'v1', status: 'completed', items: [], subtotal: 1, discount: 0, total: 1 }));
 await attempt('student reviews a picked-up order', async () => {
-  const f = env.authenticatedContext('cust').firestore();
+  const f = env.authenticatedContext('cust', { email_verified: true }).firestore();
   const b = writeBatch(f);
   b.set(doc(f, 'reviews/done'), { orderId: 'done', customerId: 'cust', vendorId: 'v1', rating: 4, comment: 'Masarap!',
     customerName: '', createdAt: serverTimestamp() });
@@ -140,3 +140,14 @@ await attempt('stall publishes queue size', () =>
 
 console.table(rows);
 await env.cleanup();
+
+// Fail CI on any surprise: "(should be REFUSED)" steps must be refused,
+// every other step must succeed.
+const wrong = rows.filter((r) =>
+  (r.step.includes('should be REFUSED') ? 'REFUSED' : 'OK') !== r.result);
+if (wrong.length) {
+  console.error('Unexpected results:', wrong.map((r) => r.step).join('; '));
+  process.exitCode = 1;
+} else {
+  console.log(`All ${rows.length} flow steps behaved as expected.`);
+}

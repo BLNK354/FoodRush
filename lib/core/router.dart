@@ -10,6 +10,8 @@ import '../features/admin/admin_users.dart';
 import '../features/admin/admin_vendors.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/verify_email_screen.dart';
+import '../features/privacy/privacy_screen.dart';
 import '../features/customer/cart_screen.dart';
 import '../features/customer/checkout_screen.dart';
 import '../features/customer/order_tracking_screen.dart';
@@ -48,10 +50,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       final role = auth.role;
       final loc = state.matchedLocation;
 
+      // The privacy notice is public: linked from sign-up.
+      if (loc == '/privacy') return null;
       final onAuthPage =
           loc == '/' || loc == '/login' || loc == '/register';
       if (!loggedIn && !onAuthPage) return '/login';
-      if (loggedIn && onAuthPage) {
+      // Signed in but email not confirmed yet: only the verify screen (and
+      // profile, to sign out or fix things) until they click the link.
+      if (loggedIn && !auth.emailVerified) {
+        return loc == '/verify-email' || loc == '/profile' ? null : '/verify-email';
+      }
+      if (loggedIn && (onAuthPage || loc == '/verify-email')) {
         return switch (role) {
           kRoleAdmin => '/admin',
           kRoleVendor => '/vendor',
@@ -87,6 +96,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/verify-email',
+        builder: (context, state) => const VerifyEmailScreen(),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (context, state) => const PrivacyScreen(),
       ),
       // Every role's own account page (outside the role shells).
       GoRoute(
@@ -210,6 +227,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     final changed = prev == null ||
         prev.loading != next.loading ||
         prev.isAuthenticated != next.isAuthenticated ||
+        prev.emailVerified != next.emailVerified ||
         prev.role != next.role;
     if (!changed) return;
     WidgetsBinding.instance.addPostFrameCallback((_) => router.refresh());

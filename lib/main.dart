@@ -11,6 +11,7 @@ import 'core/router.dart';
 import 'core/theme.dart';
 import 'providers/auth_controller.dart';
 import 'providers/theme_mode.dart';
+import 'shared/browser/browser.dart' as browser;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +56,15 @@ Future<void> main() async {
         'This build has no Firebase configuration '
         '(${missing.map((e) => e.key).join(', ')}).'));
     return;
+  }
+  if (kUseEmulators) {
+    // FlutterFire web connects the Auth emulator DURING initializeApp only if
+    // this session key is set (and the page is on "localhost"). Connecting
+    // afterwards is too late when a saved login exists: the library has
+    // already refreshed it against the real servers and silently ignores the
+    // emulator. (Belt and braces: emulator mode also uses a fake API key.)
+    browser.writeSessionValue(
+        '[DEFAULT]-firebaseEmulatorOrigin', 'http://127.0.0.1:9099');
   }
   try {
     await Firebase.initializeApp(options: defaultFirebaseOptions);

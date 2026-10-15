@@ -131,6 +131,13 @@ const String kColCounters = 'counters';
 // Misc
 // ---------------------------------------------------------------------------
 const String kAppName = 'FoodRush';
+
+/// Shown on the privacy notice for privacy requests. Fill in the address
+/// your admins actually read (left blank, the contact line is hidden).
+const String kSupportEmail = '';
+
+/// Replaces a deleted student's name on past orders and reviews.
+const String kDeletedUserName = 'Deleted user';
 const String kCurrencySymbol = '₱';
 const int kMinPasswordLength = 8;
 const int kMaxCartQty = 99;

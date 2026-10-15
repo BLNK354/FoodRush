@@ -28,6 +28,12 @@ async function signUp(email) {
   });
   const body = await res.json();
   if (!res.ok) throw new Error(`${email}: ${JSON.stringify(body)}`);
+  // Mark the email as verified (the app requires it to order).
+  await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+    body: JSON.stringify({ localId: body.localId, emailVerified: true }),
+  });
   return body.localId;
 }
 
