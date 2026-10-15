@@ -6,7 +6,7 @@ import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
-import '../../providers/theme_mode.dart';
+import '../../shared/language_picker.dart';
 import '../../shared/premium.dart';
 import '../../shared/responsive.dart';
 import '../../shared/validation.dart';
@@ -150,13 +150,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ],
           ),
-          TextButton.icon(
-            onPressed: () => ref
-                .read(filipinoProvider.notifier)
-                .set(!ref.read(filipinoProvider)),
-            icon: const Icon(Icons.translate, size: 18),
-            label: Text(Lang.fil ? 'English' : 'Filipino'),
-          ),
+          const Center(child: LanguageButton()),
         ],
       ),
     );
