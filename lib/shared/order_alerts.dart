@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/i18n.dart';
 import '../core/constants.dart';
 import '../models/order.dart';
 import '../providers/repository.dart';
@@ -96,8 +97,8 @@ class _OrderAlertsState extends State<OrderAlerts> {
     final stall = o.vendorName ?? 'the stall';
     return switch (o.status) {
       kOrderReady => (
-          'Order #${o.queueNumber ?? ''} is ready!',
-          'Pick it up at $stall.'
+          tr('Order #{n} is ready!', {'n': o.queueNumber ?? ''}),
+          tr('Pick it up at {stall}.', {'stall': stall})
         ),
       kOrderRejected => (
           'Order ${o.orderNumber} was rejected',
@@ -129,7 +130,7 @@ class _OrderAlertsState extends State<OrderAlerts> {
       duration: const Duration(seconds: 8),
       content: Text('$title — $body'),
       action: SnackBarAction(
-        label: 'View',
+        label: tr('View'),
         onPressed: () =>
             context.go(widget.vendor ? '/vendor/orders' : '/orders/${o.id}'),
       ),

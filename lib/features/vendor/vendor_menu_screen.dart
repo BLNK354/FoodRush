@@ -8,6 +8,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/product.dart';
 import '../../models/user.dart';
+import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
@@ -59,18 +60,24 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     }
   }
 
+  /// Staff may only switch items on/off (the rules enforce the same).
+  bool get _isOwner => ref.read(authControllerProvider).role == kRoleVendor;
+
   @override
   Widget build(BuildContext context) {
     return FrPage(
       title: 'Menu',
-      subtitle: 'What students can order from your stall.',
+      subtitle: _isOwner
+          ? 'What students can order from your stall.'
+          : 'Switch items off when they sell out.',
       actions: [
         IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
-        FilledButton.icon(
-          onPressed: _vendor == null ? null : () => _editProduct(null),
-          icon: const Icon(Icons.add),
-          label: const Text('Add product'),
-        ),
+        if (_isOwner)
+          FilledButton.icon(
+            onPressed: _vendor == null ? null : () => _editProduct(null),
+            icon: const Icon(Icons.add),
+            label: const Text('Add product'),
+          ),
       ],
       children: [
         if (_loading && _products.isEmpty)
@@ -86,11 +93,13 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
           // Categories row
           SectionHeader(
             'Categories',
-            trailing: TextButton.icon(
-              onPressed: _manageCategories,
-              icon: const Icon(Icons.category, size: 18),
-              label: const Text('Manage'),
-            ),
+            trailing: _isOwner
+                ? TextButton.icon(
+                    onPressed: _manageCategories,
+                    icon: const Icon(Icons.category, size: 18),
+                    label: const Text('Manage'),
+                  )
+                : null,
           ),
           Wrap(
             spacing: 8,
@@ -179,17 +188,19 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
               value: p.isAvailable,
               onChanged: (_) => _toggleAvailability(p),
             ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: () => _editProduct(p),
-              tooltip: 'Edit',
-            ),
-            IconButton(
-              icon: Icon(Icons.delete_outline,
-                  size: 20, color: FrColors.danger),
-              onPressed: () => _deleteProduct(p),
-              tooltip: 'Delete',
-            ),
+            if (_isOwner) ...[
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                onPressed: () => _editProduct(p),
+                tooltip: 'Edit',
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline,
+                    size: 20, color: FrColors.danger),
+                onPressed: () => _deleteProduct(p),
+                tooltip: 'Delete',
+              ),
+            ],
           ],
         ),
       ),
@@ -206,17 +217,8 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
 
   Future<void> _toggleAvailability(Product p) async {
     try {
-      await Repository.instance.upsertProduct(
-        id: p.id,
-        vendorId: p.vendorId,
-        name: p.name,
-        description: p.description,
-        price: p.price,
-        imageUrl: p.imageUrl,
-        isAvailable: !p.isAvailable,
-        stockQty: p.stockQty,
-        categoryId: p.categoryId,
-      );
+      await Repository.instance
+          .setProductAvailable(p.vendorId, p.id, !p.isAvailable);
       await _load();
     } catch (e) {
       if (mounted) showSnack(context, 'Update failed: $e', error: true);
@@ -250,6 +252,10 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     String? categoryId = existing?.categoryId;
     String? imageUrl = existing?.imageUrl;
     bool available = existing?.isAvailable ?? true;
+    final addons = [...?existing?.addons];
+    final tags = {...?existing?.tags};
+    final addonName = TextEditingController();
+    final addonPrice = TextEditingController();
     Uint8List? newImageBytes;
     String? newImageName;
     var showErrors = false; // after the first Save attempt
@@ -344,6 +350,94 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                   onChanged: (v) => setDialogState(() => categoryId = v),
                 ),
                 const SizedBox(height: 12),
+                // ---- tags ----
+                Text('Tags', style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final t in kProductTags)
+                      FilterChip(
+                        avatar: Icon(tagIcon(t), size: 16),
+                        label: Text(tagLabel(t)),
+                        selected: tags.contains(t),
+                        onSelected: (on) => setDialogState(
+                            () => on ? tags.add(t) : tags.remove(t)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // ---- add-ons ----
+                Text('Add-ons (optional extras students can tick)',
+                    style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
+                for (final (i, a) in addons.indexed)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(a.name),
+                    subtitle: Text(a.price == 0 ? 'Free' : '+${peso(a.price)}'),
+                    trailing: IconButton(
+                      tooltip: 'Remove add-on',
+                      icon: Icon(Icons.close, color: FrColors.danger, size: 18),
+                      onPressed: () => setDialogState(() => addons.removeAt(i)),
+                    ),
+                  ),
+                if (addons.length < kMaxAddons)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: addonName,
+                          maxLength: Limits.addonName,
+                          decoration: const InputDecoration(
+                              hintText: 'e.g. Extra rice', counterText: ''),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: addonPrice,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                            LengthLimitingTextInputFormatter(7),
+                          ],
+                          decoration: const InputDecoration(hintText: '+₱ (0 ok)'),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Add this add-on',
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: () {
+                          final err = firstError([
+                            validateText(addonName.text,
+                                max: Limits.addonName, required: true, label: 'Add-on'),
+                            validateMoney(addonPrice.text.isEmpty ? '0' : addonPrice.text,
+                                max: Limits.maxAddonPrice, allowZero: true, label: 'Add-on price'),
+                            addons.any((a) => a.name.toLowerCase() ==
+                                    addonName.text.trim().toLowerCase())
+                                ? 'That add-on is already listed'
+                                : null,
+                          ]);
+                          if (err != null) {
+                            showSnack(context, err, error: true);
+                            return;
+                          }
+                          setDialogState(() {
+                            addons.add(Addon(addonName.text.trim(),
+                                double.parse(addonPrice.text.isEmpty ? '0' : addonPrice.text)));
+                            addonName.clear();
+                            addonPrice.clear();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Container(
@@ -434,6 +528,8 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
         isAvailable: available,
         stockQty: int.tryParse(stock.text.trim()),
         categoryId: categoryId,
+        addons: addons,
+        tags: [for (final t in kProductTags) if (tags.contains(t)) t],
       );
       if (mounted) showSnack(context, 'Product saved.');
       await _load();

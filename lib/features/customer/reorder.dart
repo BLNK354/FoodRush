@@ -57,8 +57,17 @@ Future<void> _reorder(BuildContext context, WidgetRef ref, Order order) async {
         skipped.add(it.name);
         continue;
       }
+      // Keep the same add-ons, at today's prices; one that's gone means
+      // the line can't be repeated as ordered.
+      final addons = [
+        for (final name in it.addons) ...p.addons.where((a) => a.name == name),
+      ];
+      if (addons.length != it.addons.length) {
+        skipped.add(it.label);
+        continue;
+      }
       final qty = p.stockQty == null ? it.qty : it.qty.clamp(1, p.stockQty!);
-      if (cart.add(p, qty: qty) == null) added++;
+      if (cart.add(p, qty: qty, addons: addons) == null) added++;
     }
 
     if (added == 0) {

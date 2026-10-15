@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/constants.dart';
+import '../core/i18n.dart';
 import '../core/theme.dart';
 import '../models/user.dart';
 
@@ -306,7 +307,7 @@ class RatingBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = rating;
     if (r == null || count == 0) {
-      return Text('New',
+      return Text(tr('New'),
           style: TextStyle(
               fontSize: size - 1,
               color: FrColors.muted,
@@ -360,9 +361,26 @@ class StarPicker extends StatelessWidget {
 String waitLabel(Vendor v, int ordersAhead) {
   final minutes = (ordersAhead + 1) * v.prepMinutes;
   return minutes <= v.prepMinutes
-      ? 'Ready in ~$minutes min'
-      : 'Ready in ~$minutes min · $ordersAhead ahead';
+      ? tr('Ready in ~{m} min', {'m': minutes})
+      : tr('Ready in ~{m} min · {n} ahead', {'m': minutes, 'n': ordersAhead});
 }
+
+/// Display name / icon for a product tag (see kProductTags).
+String tagLabel(String tag) => switch (tag) {
+      'halal' => tr('Halal'),
+      'vegetarian' => tr('Vegetarian'),
+      'spicy' => tr('Spicy'),
+      'bestseller' => tr('Bestseller'),
+      _ => tag,
+    };
+
+IconData tagIcon(String tag) => switch (tag) {
+      'halal' => Icons.verified_outlined,
+      'vegetarian' => Icons.eco_outlined,
+      'spicy' => Icons.local_fire_department_outlined,
+      'bestseller' => Icons.star_outline,
+      _ => Icons.label_outline,
+    };
 
 /// "12:30 PM".
 String fmtClock(DateTime t) {

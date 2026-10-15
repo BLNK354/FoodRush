@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 
+import 'product.dart';
+
 // ---------------------------------------------------------------------------
 // Line item — embedded in the order doc.
 // ---------------------------------------------------------------------------
@@ -14,6 +16,12 @@ class OrderItem {
   /// (stock-limited product), so cancelling must put it back.
   final bool stockTracked;
 
+  /// Chosen add-on names; [unitPrice] already includes their prices.
+  final List<String> addons;
+
+  /// "Adobo (+ Extra rice, Egg)".
+  String get label => addons.isEmpty ? name : '$name (+ ${addons.join(', ')})';
+
   const OrderItem({
     required this.productId,
     required this.name,
@@ -21,6 +29,7 @@ class OrderItem {
     required this.qty,
     required this.lineTotal,
     this.stockTracked = false,
+    this.addons = const [],
   });
 
   factory OrderItem.fromMap(Map<String, dynamic> m) => OrderItem(
@@ -30,6 +39,10 @@ class OrderItem {
         qty: ((m['qty'] ?? 0) as num).toInt(),
         lineTotal: ((m['lineTotal'] ?? 0) as num).toDouble(),
         stockTracked: m['stockTracked'] == true,
+        addons: [
+          for (final a in (m['addons'] as List? ?? const []))
+            if (a is String) a,
+        ],
       );
 }
 
@@ -114,9 +127,9 @@ class Order {
 
   /// Reasons this order's money doesn't add up. Rules can check that the
   /// totals are consistent but not that each line matches the menu, so the
-  /// stall re-checks here. [menuPrices] = productId -> current price; a
-  /// missing product is only reported when the map is given.
-  List<String> integrityIssues([Map<String, double>? menuPrices]) {
+  /// stall re-checks here. [menu] = productId -> current product (price and
+  /// add-ons); a missing product is only reported when the map is given.
+  List<String> integrityIssues([Map<String, Product>? menu]) {
     bool off(double a, double b) => (a - b).abs() >= 0.01;
     final issues = <String>[];
     var sum = 0.0;
@@ -126,12 +139,15 @@ class Order {
       if (off(it.unitPrice * it.qty, it.lineTotal)) {
         issues.add("${it.name}: line total doesn't match its price");
       }
-      final menu = menuPrices?[it.productId];
-      if (menuPrices != null && menu == null) {
+      final product = menu?[it.productId];
+      final expected = product?.priceWith(it.addons);
+      if (menu != null && product == null) {
         issues.add('${it.name}: not on your menu');
-      } else if (menu != null && off(menu, it.unitPrice)) {
-        issues.add('${it.name}: charged ${it.unitPrice.toStringAsFixed(2)}, '
-            'menu says ${menu.toStringAsFixed(2)}');
+      } else if (product != null && expected == null) {
+        issues.add('${it.label}: add-on not on your menu');
+      } else if (expected != null && off(expected, it.unitPrice)) {
+        issues.add('${it.label}: charged ${it.unitPrice.toStringAsFixed(2)}, '
+            'menu says ${expected.toStringAsFixed(2)}');
       }
     }
     if (off(sum, subtotal)) issues.add("Items don't add up to the subtotal");

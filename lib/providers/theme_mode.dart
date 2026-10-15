@@ -22,3 +22,20 @@ class ThemeModeController extends Notifier<ThemeMode> {
 
 final themeModeProvider =
     NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
+
+/// English or Filipino for the student screens, remembered per browser.
+/// true = Filipino.
+class FilipinoController extends Notifier<bool> {
+  static const _key = 'lang';
+
+  @override
+  bool build() => browser.readPref(_key) == 'fil';
+
+  void set(bool fil) {
+    state = fil;
+    browser.writePref(_key, fil ? 'fil' : 'en');
+  }
+}
+
+final filipinoProvider =
+    NotifierProvider<FilipinoController, bool>(FilipinoController.new);

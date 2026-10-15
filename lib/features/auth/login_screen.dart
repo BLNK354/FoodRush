@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
+import '../../providers/theme_mode.dart';
 import '../../shared/responsive.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
@@ -70,14 +72,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Welcome back',
+            tr('Welcome back'),
             style: Theme.of(context)
                 .textTheme
                 .headlineMedium
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
-          Text('Sign in to skip the line at your favorite stalls.',
+          Text(tr('Sign in to skip the line at your favorite stalls.'),
               style: TextStyle(color: FrColors.muted)),
           const SizedBox(height: 24),
           if (notice != null) ...[
@@ -104,7 +106,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ],
           FrTextField(
             controller: _email,
-            label: 'Email',
+            label: tr('Email'),
             keyboardType: TextInputType.emailAddress,
             maxLength: Limits.email,
             validator: validateEmail,
@@ -112,7 +114,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 16),
           FrTextField(
             controller: _password,
-            label: 'Password',
+            label: tr('Password'),
             obscure: true,
             maxLength: Limits.password,
             validator: (v) =>
@@ -125,7 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: _busy ? null : _forgotPassword,
-              child: const Text('Forgot password?'),
+              child: Text(tr('Forgot password?')),
             ),
           ),
           const SizedBox(height: 12),
@@ -138,19 +140,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white),
                   )
-                : const Text('Sign in'),
+                : Text(tr('Sign in')),
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("Don't have an account?",
+              Text(tr("Don't have an account?"),
                   style: TextStyle(color: FrColors.muted)),
               TextButton(
                 onPressed: () => context.go('/register'),
-                child: const Text('Create one'),
+                child: Text(tr('Create one')),
               ),
             ],
+          ),
+          TextButton.icon(
+            onPressed: () => ref
+                .read(filipinoProvider.notifier)
+                .set(!ref.read(filipinoProvider)),
+            icon: const Icon(Icons.translate, size: 18),
+            label: Text(Lang.fil ? 'English' : 'Filipino'),
           ),
         ],
       ),
@@ -274,17 +283,17 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Reset your password'),
+      title: Text(tr('Reset your password')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text("We'll email you a link to set a new password.",
+          Text(tr("We'll email you a link to set a new password."),
               style: TextStyle(color: FrColors.muted)),
           const SizedBox(height: 16),
           FrTextField(
             controller: _email,
-            label: 'Email',
+            label: tr('Email'),
             keyboardType: TextInputType.emailAddress,
             maxLength: Limits.email,
             validator: validateEmail,
@@ -294,7 +303,7 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(tr('Cancel')),
         ),
         FilledButton(
           onPressed: () {
@@ -305,7 +314,7 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
             }
             Navigator.pop(context, _email.text.trim());
           },
-          child: const Text('Send link'),
+          child: Text(tr('Send link')),
         ),
       ],
     );

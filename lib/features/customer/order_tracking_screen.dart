@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/misc.dart';
@@ -86,7 +87,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       await Repository.instance.submitProof(
           orderId: widget.orderId, imageUrl: url);
       if (!mounted) return;
-      showSnack(context, 'Receipt submitted! The stall will verify it shortly.');
+      showSnack(context, tr('Receipt submitted! The stall will verify it shortly.'));
     } catch (e) {
       if (mounted) showSnack(context, 'Upload failed: $e', error: true);
     } finally {
@@ -101,18 +102,18 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     }
     if (_error != null && _order == null) {
       return FrPage(
-        title: 'Order',
+        title: tr('Order'),
         children: [
           EmptyState(
             icon: Icons.error_outline,
-            title: 'Could not load order',
+            title: tr('Could not load order'),
             message: _error,
             action: FilledButton(
               onPressed: () {
                 setState(() => _loading = true);
                 _subscribe();
               },
-              child: const Text('Retry'),
+              child: Text(tr('Retry')),
             ),
           ),
         ],
@@ -121,7 +122,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     final o = _order!;
 
     return FrPage(
-      title: 'Order ${o.orderNumber}',
+      title: tr('Order {n}', {'n': o.orderNumber}),
       subtitle: _isNewBanner,
       actions: [
         StatusChip.order(o.status),
@@ -155,7 +156,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                         ),
                         child: Column(
                           children: [
-                            Text('QUEUE #',
+                            Text(tr('QUEUE #'),
                                 style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w800,
@@ -187,8 +188,9 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                             const SizedBox(height: 4),
                             Text(
                               o.pickupAt == null
-                                  ? 'Pickup: as soon as it\'s ready'
-                                  : 'Pickup: ${fmtClock(o.pickupAt!)}',
+                                  ? tr("Pickup: as soon as it's ready")
+                                  : tr('Pickup: {time}',
+                                      {'time': fmtClock(o.pickupAt!)}),
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700, fontSize: 13),
                             ),
@@ -202,10 +204,10 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 _Timeline(order: o),
                 if (o.isActive && o.status != kOrderReady) ...[
                   const SizedBox(height: 16),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: EnableAlertsButton(
-                        label: 'Notify me when it\'s ready'),
+                        label: tr('Notify me when it\'s ready')),
                   ),
                 ],
               ],
@@ -230,7 +232,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Row(
                         children: [
-                          Expanded(child: Text('${it.qty} × ${it.name}')),
+                          Expanded(child: Text('${it.qty} × ${it.label}')),
                           Text(peso(it.lineTotal)),
                         ],
                       ),
@@ -294,13 +296,13 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             OutlinedButton.icon(
               onPressed: () => context.go('/orders'),
               icon: const Icon(Icons.arrow_back),
-              label: const Text('All my orders'),
+              label: Text(tr('All my orders')),
             ),
             if (!o.isActive)
               FilledButton.icon(
                 onPressed: () => reorder(context, ref, o),
                 icon: const Icon(Icons.replay),
-                label: const Text('Order again'),
+                label: Text(tr('Order again')),
               ),
           ],
         ),
@@ -450,8 +452,8 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                       color: FrColors.chipGcash),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
-                  child: Text('Pay with GCash',
+                Expanded(
+                  child: Text(tr('Pay with GCash'),
                       style: TextStyle(
                           fontWeight: FontWeight.w800, fontSize: 16)),
                 ),
@@ -512,7 +514,7 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.upload_file),
-              label: const Text('Upload GCash receipt'),
+              label: Text(tr('Upload GCash receipt')),
             ),
             const SizedBox(height: 6),
             Text(
@@ -584,7 +586,8 @@ class _ReviewCardState extends State<_ReviewCard> {
       final saved = await Repository.instance.getReview(widget.order.id);
       if (!mounted) return;
       setState(() => _existing = saved);
-      showSnack(context, 'Thanks for rating ${widget.order.vendorName ?? 'the stall'}!');
+      showSnack(context, tr('Thanks for rating {stall}!',
+          {'stall': widget.order.vendorName ?? 'the stall'}));
     } catch (e) {
       if (mounted) showSnack(context, 'Could not save review: $e', error: true);
     } finally {
@@ -604,8 +607,9 @@ class _ReviewCardState extends State<_ReviewCard> {
           children: [
             Text(
               r == null
-                  ? 'How was ${widget.order.vendorName ?? 'your order'}?'
-                  : 'Your rating',
+                  ? tr('How was {stall}?',
+                      {'stall': widget.order.vendorName ?? 'your order'})
+                  : tr('Your rating'),
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
             const SizedBox(height: 8),
@@ -627,7 +631,7 @@ class _ReviewCardState extends State<_ReviewCard> {
               const SizedBox(height: 8),
               FrTextField(
                 controller: _comment,
-                label: 'Comment (optional)',
+                label: tr('Comment (optional)'),
                 maxLines: 2,
                 maxLength: Limits.review,
                 validator: (v) => validateText(v, max: Limits.review, label: 'Comment'),

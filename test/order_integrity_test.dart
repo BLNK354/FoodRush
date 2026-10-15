@@ -1,6 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodrush/core/constants.dart';
 import 'package:foodrush/models/order.dart';
+import 'package:foodrush/models/product.dart';
+
+Map<String, Product> menu(double price, [List<Addon> addons = const []]) => {
+      'adobo': Product(id: 'adobo', vendorId: 'v1', name: 'Adobo', price: price, addons: addons),
+    };
 
 /// The stall-side check that an order's money adds up and matches the menu.
 void main() {
@@ -20,11 +25,11 @@ void main() {
         });
 
     test('a clean order has no issues', () {
-      expect(tampered().integrityIssues({'adobo': 50}), isEmpty);
+      expect(tampered().integrityIssues(menu(50)), isEmpty);
     });
 
     test('flags prices that differ from the menu', () {
-      final issues = tampered(unit: 1, total: 100).integrityIssues({'adobo': 50});
+      final issues = tampered(unit: 1, total: 100).integrityIssues(menu(50));
       expect(issues.join(' '), contains('menu says 50.00'));
     });
 
@@ -41,6 +46,31 @@ void main() {
         ],
       });
       expect(o.integrityIssues().join(), contains('Took 20 from stock but ordered 1'));
+    });
+
+    test('accepts add-ons priced as on the menu', () {
+      final o = Order.fromMap('a', {
+        'subtotal': 65, 'discount': 0, 'total': 65, 'status': kOrderAccepted,
+        'paymentMethod': kPayCash,
+        'items': [
+          {'productId': 'adobo', 'name': 'Adobo', 'unitPrice': 65, 'qty': 1,
+            'lineTotal': 65, 'addons': ['Extra rice']},
+        ],
+      });
+      expect(o.integrityIssues(menu(50, const [Addon('Extra rice', 15)])), isEmpty);
+      expect(o.items.single.label, 'Adobo (+ Extra rice)');
+    });
+
+    test('flags an add-on that is not on the menu', () {
+      final o = Order.fromMap('a', {
+        'subtotal': 50, 'discount': 0, 'total': 50, 'status': kOrderAccepted,
+        'paymentMethod': kPayCash,
+        'items': [
+          {'productId': 'adobo', 'name': 'Adobo', 'unitPrice': 50, 'qty': 1,
+            'lineTotal': 50, 'addons': ['Free lechon']},
+        ],
+      });
+      expect(o.integrityIssues(menu(50)).join(), contains('add-on not on your menu'));
     });
 
     test('flags items missing from the menu', () {

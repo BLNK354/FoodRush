@@ -24,7 +24,8 @@ async function seed(counter) {
     await setDoc(doc(f, 'users/cust'), { role: 'customer', email: 'c@lpunetwork.edu.ph', fullName: '', isActive: true });
     await setDoc(doc(f, 'users/vend'), { role: 'vendor', email: 'v@x.com', fullName: 'V', isActive: true });
     await setDoc(doc(f, 'vendors/v1'), { ownerId: 'vend', name: 'Potato Corner', isVerified: true, isOpen: true, ratingSum: 0, ratingCount: 0 });
-    await setDoc(doc(f, 'vendors/v1/products/fries'), { vendorId: 'v1', name: 'Fries', price: 100, stockQty: 10, isAvailable: true });
+    await setDoc(doc(f, 'vendors/v1/products/fries'), { vendorId: 'v1', name: 'Fries', price: 100, stockQty: 10, isAvailable: true,
+      addons: [{ name: 'Cheese', price: 15 }, { name: 'Large', price: 30 }] });
     await setDoc(doc(f, 'vendors/v1/products/drink'), { vendorId: 'v1', name: 'Drink', price: 50, stockQty: null, isAvailable: true });
     if (counter === 'sameDay') await setDoc(doc(f, 'counters/vendor_v1'), { count: 3, day: dayStart });
     if (counter === 'oldDay') await setDoc(doc(f, 'counters/vendor_v1'), { count: 9, day: Timestamp.fromMillis(dayStart.toMillis() - 864e5) });
@@ -39,10 +40,14 @@ async function placeOrder(id, lines, payment = 'cash') {
     const c = await tx.get(counterRef);
     const userRef = doc(f, 'users/cust');
     await tx.get(userRef);
-    const prods = [];
-    for (const [pid, qty] of lines) {
-      const ref = doc(f, `vendors/v1/products/${pid}`);
-      prods.push([ref, pid, (await tx.get(ref)).data(), qty]);
+    // Like the app: each product read once; several lines (add-on combos)
+    // may share it; stock taken once for their total.
+    const prods = {};
+    for (const [pid] of lines) {
+      if (!prods[pid]) {
+        const ref = doc(f, `vendors/v1/products/${pid}`);
+        prods[pid] = { ref, p: (await tx.get(ref)).data(), total: 0 };
+      }
     }
     const day = c.data()?.day;
     const sameDay = day && day.toMillis() === dayStart.toMillis();
@@ -50,13 +55,19 @@ async function placeOrder(id, lines, payment = 'cash') {
     const stockTaken = {};
     let subtotal = 0;
     const items = [];
-    for (const [ref, pid, p, qty] of prods) {
+    for (const [pid, qty, addons = []] of lines) {
+      const { p } = prods[pid];
+      prods[pid].total += qty;
+      const unit = p.price + addons.reduce((s, n) => s + p.addons.find((a) => a.name === n).price, 0);
+      subtotal += unit * qty;
+      items.push({ productId: pid, name: p.name, unitPrice: unit, qty, lineTotal: unit * qty,
+        ...(addons.length ? { addons } : {}), stockTracked: p.stockQty != null });
+    }
+    for (const [pid, { ref, p, total }] of Object.entries(prods)) {
       if (p.stockQty != null) {
-        stockTaken[pid] = qty;
-        tx.update(ref, { stockQty: p.stockQty - qty, lastStockOrder: id });
+        stockTaken[pid] = total;
+        tx.update(ref, { stockQty: p.stockQty - total, lastStockOrder: id });
       }
-      subtotal += p.price * qty;
-      items.push({ productId: pid, name: p.name, unitPrice: p.price, qty, lineTotal: p.price * qty, stockTracked: p.stockQty != null });
     }
     tx.update(userRef, { lastOrderAt: serverTimestamp() });
     tx.set(counterRef, { count: queue, day: dayStart }, { merge: true });
@@ -103,6 +114,11 @@ for (const counter of ['none', 'sameDay', 'oldDay', 'activeOnly']) {
   await attempt(`[${counter}] checkout fries x2 + drink x1`, () => placeOrder('o1', [['fries', 2], ['drink', 1]]),
     async () => `fries stock now ${await stock()}`);
 }
+
+await seed('none');
+await attempt('checkout fries x1 + fries (+Cheese, Large) x2 (add-on lines share stock)',
+  () => placeOrder('o1', [['fries', 1], ['fries', 2, ['Cheese', 'Large']]]),
+  async () => `fries stock now ${await stock()}`);
 
 await seed('none');
 await attempt('checkout drink only (unlimited)', () => placeOrder('o1', [['drink', 3]]));

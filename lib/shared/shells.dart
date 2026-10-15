@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/i18n.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
 import '../providers/auth_controller.dart';
@@ -46,12 +47,12 @@ class CustomerShell extends ConsumerWidget {
           style: const TextStyle(color: FrColors.primary)),
       actions: [
         IconButton(
-          tooltip: 'My profile',
+          tooltip: tr('My profile'),
           icon: const Icon(Icons.account_circle_outlined),
           onPressed: () => context.go('/profile'),
         ),
         IconButton(
-          tooltip: 'Sign out',
+          tooltip: tr('Sign out'),
           icon: const Icon(Icons.logout),
           onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
         ),
@@ -88,7 +89,7 @@ class CustomerShell extends ConsumerWidget {
                   NavigationRailDestination(
                     icon: Icon(d.icon),
                     selectedIcon: Icon(d.selectedIcon),
-                    label: Text(d.label),
+                    label: Text(tr(d.label)),
                   ),
               ],
             ),
@@ -105,7 +106,7 @@ class CustomerShell extends ConsumerWidget {
                   NavigationDestination(
                     icon: Icon(d.icon),
                     selectedIcon: Icon(d.selectedIcon),
-                    label: d.label,
+                    label: tr(d.label),
                   ),
               ],
             ),
@@ -181,12 +182,12 @@ class StaffShell extends ConsumerWidget {
           title: Text(current),
           actions: [
             IconButton(
-              tooltip: 'My profile',
+              tooltip: tr('My profile'),
               icon: const Icon(Icons.account_circle_outlined),
               onPressed: () => context.go('/profile'),
             ),
             IconButton(
-              tooltip: 'Sign out',
+              tooltip: tr('Sign out'),
               icon: const Icon(Icons.logout),
               onPressed: () =>
                   ref.read(authControllerProvider.notifier).signOut(),
@@ -230,7 +231,7 @@ class StaffShell extends ConsumerWidget {
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.account_circle_outlined),
-                  title: const Text('My profile'),
+                  title: Text(tr('My profile')),
                   onTap: () {
                     Navigator.of(context).pop();
                     context.go('/profile');
@@ -238,7 +239,7 @@ class StaffShell extends ConsumerWidget {
                 ),
                 ListTile(
                   leading: const Icon(Icons.logout),
-                  title: const Text('Sign out'),
+                  title: Text(tr('Sign out')),
                   onTap: () =>
                       ref.read(authControllerProvider.notifier).signOut(),
                 ),
@@ -277,13 +278,13 @@ class StaffShell extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        tooltip: 'My profile',
+                        tooltip: tr('My profile'),
                         icon: Icon(Icons.account_circle_outlined,
                             color: FrColors.muted),
                         onPressed: () => context.go('/profile'),
                       ),
                       IconButton(
-                        tooltip: 'Sign out',
+                        tooltip: tr('Sign out'),
                         icon: Icon(Icons.logout, color: FrColors.muted),
                         onPressed: () =>
                             ref.read(authControllerProvider.notifier).signOut(),
@@ -309,16 +310,24 @@ class StaffShell extends ConsumerWidget {
   }
 }
 
-class VendorShell extends StatelessWidget {
+class VendorShell extends ConsumerWidget {
   final Widget child;
   const VendorShell({super.key, required this.child});
 
+  /// Staff only get the day-to-day pages.
+  static const _staffPaths = {'/vendor', '/vendor/orders', '/vendor/menu'};
+
   @override
-  Widget build(BuildContext context) => StaffShell(
-        title: 'V',
-        dests: _vendorDests,
-        child: child,
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isStaff = ref.watch(authControllerProvider.select((a) => a.role)) == kRoleStaff;
+    return StaffShell(
+      title: isStaff ? 'S' : 'V',
+      dests: isStaff
+          ? [for (final d in _vendorDests) if (_staffPaths.contains(d.path)) d]
+          : _vendorDests,
+      child: child,
+    );
+  }
 }
 
 class AdminShell extends StatelessWidget {

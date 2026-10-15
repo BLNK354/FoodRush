@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
@@ -60,7 +61,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             phone: _phone.text,
             studentNumber: isCustomer ? _studentNumber.text : null,
           );
-      if (mounted) showSnack(context, 'Profile saved.');
+      if (mounted) showSnack(context, tr('Profile saved.'));
     } catch (e) {
       if (mounted) showSnack(context, 'Save failed: $e', error: true);
     } finally {
@@ -106,18 +107,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isCustomer = profile.role == kRoleCustomer;
     final roleLabel = switch (profile.role) {
       kRoleAdmin => 'Admin',
-      kRoleVendor => 'Stall owner',
-      _ => 'Student',
+      kRoleVendor => tr('Stall owner'),
+      _ => tr('Student'),
     };
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          tooltip: 'Back',
+          tooltip: tr('Back'),
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(_home(profile.role)),
         ),
-        title: const Text('My profile'),
+        title: Text(tr('My profile')),
       ),
       body: FrPage(
         title: profile.fullName.isEmpty ? 'My profile' : profile.fullName,
@@ -139,17 +140,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SectionHeader('Account details'),
+                            SectionHeader(tr('Account details')),
                             FrTextField(
                               controller: _fullName,
-                              label: 'Full name',
+                              label: tr('Full name'),
                               maxLength: Limits.name,
                               validator: validatePersonName,
                             ),
                             const SizedBox(height: 14),
                             FrTextField(
                               controller: _phone,
-                              label: 'Mobile number (optional)',
+                              label: tr('Mobile number (optional)'),
                               keyboardType: TextInputType.phone,
                               maxLength: Limits.phone,
                               validator: validatePhone,
@@ -159,7 +160,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SizedBox(height: 14),
                               FrTextField(
                                 controller: _studentNumber,
-                                label: 'Student number (optional)',
+                                label: tr('Student number (optional)'),
                                 maxLength: Limits.studentNumber,
                                 validator: validateStudentNumber,
                               ),
@@ -181,7 +182,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                         color: Colors.white,
                                       ),
                                     )
-                                  : const Text('Save changes'),
+                                  : Text(tr('Save changes')),
                             ),
                           ],
                         ),
@@ -195,7 +196,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SectionHeader('Password'),
+                          SectionHeader(tr('Password')),
                           Text(
                             'We\'ll email a secure link to ${profile.email} '
                             'where you can choose a new password.',
@@ -210,38 +211,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ? null
                                 : () => _sendReset(profile.email),
                             icon: const Icon(Icons.lock_reset),
-                            label: const Text('Send password reset link'),
+                            label: Text(tr('Send password reset link')),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SectionHeader('Appearance'),
+                          SectionHeader(tr('Appearance')),
                           SegmentedButton<ThemeMode>(
-                            segments: const [
+                            segments: [
                               ButtonSegment(
                                   value: ThemeMode.system,
                                   icon: Icon(Icons.brightness_auto),
-                                  label: Text('System')),
+                                  label: Text(tr('System'))),
                               ButtonSegment(
                                   value: ThemeMode.light,
                                   icon: Icon(Icons.light_mode_outlined),
-                                  label: Text('Light')),
+                                  label: Text(tr('Light'))),
                               ButtonSegment(
                                   value: ThemeMode.dark,
                                   icon: Icon(Icons.dark_mode_outlined),
-                                  label: Text('Dark')),
+                                  label: Text(tr('Dark'))),
                             ],
                             selected: {ref.watch(themeModeProvider)},
                             onSelectionChanged: (s) => ref
                                 .read(themeModeProvider.notifier)
+                                .set(s.first),
+                          ),
+                          const SizedBox(height: 16),
+                          SectionHeader(tr('Language')),
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(value: false, label: Text('English')),
+                              ButtonSegment(value: true, label: Text('Filipino')),
+                            ],
+                            selected: {ref.watch(filipinoProvider)},
+                            onSelectionChanged: (s) => ref
+                                .read(filipinoProvider.notifier)
                                 .set(s.first),
                           ),
                         ],
@@ -254,7 +267,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ref.read(authControllerProvider.notifier).signOut(),
                     icon: Icon(Icons.logout, color: FrColors.danger),
                     label: Text(
-                      'Sign out',
+                      tr('Sign out'),
                       style: TextStyle(color: FrColors.danger),
                     ),
                   ),
@@ -263,7 +276,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     TextButton.icon(
                       onPressed: () => _deleteAccount(context),
                       icon: Icon(Icons.delete_forever, color: FrColors.danger),
-                      label: Text('Delete my account',
+                      label: Text(tr('Delete my account'),
                           style: TextStyle(color: FrColors.danger)),
                     )
                   else
@@ -273,7 +286,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   TextButton(
                     onPressed: () => context.push('/privacy'),
-                    child: const Text('Privacy notice'),
+                    child: Text(tr('Privacy notice')),
                   ),
                   const SizedBox(height: 40),
                 ],
@@ -343,7 +356,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(tr('Cancel')),
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: FrColors.danger),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/user.dart';
@@ -121,7 +122,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final result = await Repository.instance.placeOrder(
         vendorId: vendorId,
         items: cart
-            .map((l) => {'product_id': l.product.id, 'qty': l.qty})
+            .map((l) => {
+                  'product_id': l.product.id,
+                  'qty': l.qty,
+                  'addons': [for (final a in l.addons) a.name],
+                })
             .toList(),
         paymentMethod: _payment,
         promoCode: _promo.text.trim(),
@@ -144,9 +149,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Widget build(BuildContext context) {
     final lines = ref.watch(cartProvider);
     if (lines.isEmpty) {
-      return const FrPage(title: 'Checkout', children: [
+      return FrPage(title: tr('Checkout'), children: [
         SizedBox(height: 60),
-        EmptyState(icon: Icons.receipt_long, title: 'Nothing to check out'),
+        EmptyState(icon: Icons.receipt_long, title: tr('Nothing to check out')),
       ]);
     }
 
@@ -155,8 +160,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final isGcash = _payment == kPayGcash;
 
     return FrPage(
-      title: 'Checkout',
-      subtitle: 'Pickup only — no deliveries on FoodRush.',
+      title: tr('Checkout'),
+      subtitle: tr('Pickup only — no deliveries on FoodRush.'),
       children: [
         // Order summary
         Card(
@@ -176,7 +181,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Row(
                         children: [
-                          Expanded(child: Text('${l.qty} × ${l.product.name}')),
+                          Expanded(child: Text('${l.qty} × ${l.label}')),
                           Text(peso(l.lineTotal)),
                         ],
                       ),
@@ -213,7 +218,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Pickup at the stall',
+                      Text(tr('Pickup at the stall'),
                           style: TextStyle(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 2),
                       Text(
@@ -241,17 +246,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Payment method',
+                Text(tr('Payment method'),
                     style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 12),
                 RadioGroup<String>(
                   groupValue: _payment,
                   onChanged: (v) => setState(() => _payment = v!),
-                  child: const Column(
+                  child: Column(
                     children: [
                       RadioListTile<String>(
                         value: kPayGcash,
-                        title: Text('GCash — pay now, upload receipt'),
+                        title: Text(tr('GCash — pay now, upload receipt')),
                         subtitle: Text(
                             'You will be shown the stall\'s GCash number after ordering.',
                             style: TextStyle(fontSize: 12.5)),
@@ -259,7 +264,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                       RadioListTile<String>(
                         value: kPayCash,
-                        title: Text('Cash — pay at pickup'),
+                        title: Text(tr('Cash — pay at pickup')),
                         subtitle: Text(
                             'Exact amount appreciated. Your order is accepted right away.',
                             style: TextStyle(fontSize: 12.5)),
@@ -281,7 +286,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Promo code',
+                Text(tr('Promo code'),
                     style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 10),
                 Row(
@@ -289,7 +294,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     Expanded(
                       child: FrTextField(
                         controller: _promo,
-                        label: 'Enter code',
+                        label: tr('Enter code'),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
                           LengthLimitingTextInputFormatter(Limits.promoCode),
@@ -299,7 +304,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     const SizedBox(width: 10),
                     OutlinedButton(
                       onPressed: _applyPromo,
-                      child: const Text('Apply'),
+                      child: Text(tr('Apply')),
                     ),
                   ],
                 ),
@@ -313,7 +318,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 const SizedBox(height: 16),
                 FrTextField(
                   controller: _note,
-                  label: 'Note for the stall (optional)',
+                  label: tr('Note for the stall (optional)'),
                   maxLines: 2,
                   maxLength: Limits.note,
                   validator: (v) => validateText(v, max: Limits.note, label: 'Note'),
@@ -335,8 +340,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       strokeWidth: 2, color: Colors.white))
               : Text(
                   isGcash
-                      ? 'Place order — ${peso(total)} via GCash'
-                      : 'Place order — ${peso(total)} cash at pickup',
+                      ? tr('Place order — {total} via GCash',
+                          {'total': peso(total)})
+                      : tr('Place order — {total} cash at pickup',
+                          {'total': peso(total)}),
                   style: const TextStyle(fontSize: 15)),
         ),
         const SizedBox(height: 40),
@@ -357,7 +364,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Pickup time',
+            Text(tr('Pickup time'),
                 style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
             DropdownButtonFormField<DateTime?>(
@@ -371,13 +378,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               items: [
                 DropdownMenuItem(value: null, child: Text(asapLabel)),
                 for (final t in slots)
-                  DropdownMenuItem(value: t, child: Text('Today, ${fmtClock(t)}')),
+                  DropdownMenuItem(value: t, child: Text(tr('Today, {time}', {'time': fmtClock(t)}))),
               ],
               onChanged: (t) => setState(() => _pickupAt = t),
             ),
             if (slots.isEmpty) ...[
               const SizedBox(height: 8),
-              Text('No later slots today. The stall closes soon.',
+              Text(tr('No later slots today. The stall closes soon.'),
                   style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
             ],
           ],

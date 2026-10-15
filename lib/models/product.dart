@@ -26,6 +26,34 @@ class ProductCategory {
 }
 
 // ---------------------------------------------------------------------------
+// Add-on: an optional extra a student can tick, e.g. "Extra rice" +₱15.
+// ---------------------------------------------------------------------------
+class Addon {
+  final String name;
+  final double price; // may be 0 ("No onions")
+  const Addon(this.name, this.price);
+
+  Map<String, dynamic> toMap() => {'name': name, 'price': price};
+
+  static Addon? fromMap(Object? m) {
+    if (m is! Map || m['name'] is! String) return null;
+    return Addon(m['name'] as String, ((m['price'] ?? 0) as num).toDouble());
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Addon && other.name == name && other.price == price;
+  @override
+  int get hashCode => Object.hash(name, price);
+}
+
+/// Most add-ons one product can offer (rules allow 10).
+const kMaxAddons = 10;
+
+/// Dietary/feature tags a stall can put on a product.
+const kProductTags = ['halal', 'vegetarian', 'spicy', 'bestseller'];
+
+// ---------------------------------------------------------------------------
 // Product (Firestore: vendors/{vendorId}/products/{autoId})
 // ---------------------------------------------------------------------------
 class Product {
@@ -40,6 +68,10 @@ class Product {
   final int? stockQty;
   final DateTime? createdAt;
 
+  /// Optional extras (max 10) and tags from [kProductTags].
+  final List<Addon> addons;
+  final List<String> tags;
+
   const Product({
     required this.id,
     required this.vendorId,
@@ -51,7 +83,21 @@ class Product {
     this.isAvailable = true,
     this.stockQty,
     this.createdAt,
+    this.addons = const [],
+    this.tags = const [],
   });
+
+  /// Price of one item with the chosen [selected] add-ons. Unknown add-on
+  /// names (removed from the menu since) return null.
+  double? priceWith(List<String> selected) {
+    var total = price;
+    for (final name in selected) {
+      final a = addons.where((x) => x.name == name);
+      if (a.isEmpty) return null;
+      total += a.first.price;
+    }
+    return double.parse(total.toStringAsFixed(2));
+  }
 
   factory Product.fromMap(String id, Map<String, dynamic> m) => Product(
         id: id,
@@ -64,6 +110,14 @@ class Product {
         isAvailable: (m['isAvailable'] ?? true) == true,
         stockQty: (m['stockQty'] as num?)?.toInt(),
         createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
+        addons: [
+          for (final a in (m['addons'] as List? ?? const []))
+            if (Addon.fromMap(a) case final addon?) addon,
+        ],
+        tags: [
+          for (final t in (m['tags'] as List? ?? const []))
+            if (t is String && kProductTags.contains(t)) t,
+        ],
       );
 }
 

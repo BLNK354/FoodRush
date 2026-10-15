@@ -19,6 +19,7 @@ import '../features/customer/orders_history_screen.dart';
 import '../features/customer/shop_screen.dart';
 import '../features/customer/stall_menu_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/vendor/now_serving_screen.dart';
 import '../features/vendor/vendor_dashboard.dart';
 import '../features/vendor/vendor_menu_screen.dart';
 import '../features/vendor/vendor_orders_screen.dart';
@@ -60,21 +61,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loggedIn && !auth.emailVerified) {
         return loc == '/verify-email' || loc == '/profile' ? null : '/verify-email';
       }
-      if (loggedIn && (onAuthPage || loc == '/verify-email')) {
-        return switch (role) {
-          kRoleAdmin => '/admin',
-          kRoleVendor => '/vendor',
-          _ => '/shop',
-        };
-      }
-      // Role guards: keep each area reachable only by its role.
       final home = switch (role) {
         kRoleAdmin => '/admin',
-        kRoleVendor => '/vendor',
+        kRoleVendor || kRoleStaff => '/vendor',
         _ => '/shop',
       };
+      if (loggedIn && (onAuthPage || loc == '/verify-email')) return home;
+      // Role guards: keep each area reachable only by its role.
+      final worksAtStall = role == kRoleVendor || role == kRoleStaff;
       if (loggedIn && loc.startsWith('/admin') && role != kRoleAdmin) return home;
-      if (loggedIn && loc.startsWith('/vendor') && role != kRoleVendor) return home;
+      if (loggedIn && (loc.startsWith('/vendor') || loc == '/display') && !worksAtStall) {
+        return home;
+      }
+      // Staff run orders; settings, promos and sales are the owner's.
+      if (role == kRoleStaff &&
+          (loc.startsWith('/vendor/settings') ||
+              loc.startsWith('/vendor/promotions') ||
+              loc.startsWith('/vendor/reports'))) {
+        return '/vendor';
+      }
       // Only students order (the rules refuse anyone else), so staff may
       // browse the shop and stall pages but not the cart/checkout/orders.
       final studentOnly = loc == '/cart' ||
@@ -104,6 +109,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/privacy',
         builder: (context, state) => const PrivacyScreen(),
+      ),
+      // Full-screen counter board (stall owner/staff; guarded above).
+      GoRoute(
+        path: '/display',
+        builder: (context, state) => const NowServingScreen(),
       ),
       // Every role's own account page (outside the role shells).
       GoRoute(

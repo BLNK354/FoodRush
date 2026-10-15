@@ -65,9 +65,12 @@ beforeEach(async () => {
       owner2: { role: 'vendor', email: 'o2@x.com', isActive: true },
       admin1: { role: 'admin', email: 'a@x.com', isActive: true },
       banned: { role: 'customer', email: 'b@lpunetwork.edu.ph', isActive: false },
+      staffer: { role: 'staff', email: 'staff@x.com', isActive: true },
+      stranger: { role: 'staff', email: 'stranger@x.com', isActive: true },
     };
     for (const [id, u] of Object.entries(users)) await setDoc(doc(f, 'users', id), u);
-    await setDoc(doc(f, 'vendors/v1'), { ownerId: 'owner1', name: 'Kusina', isVerified: true, isOpen: true, ratingSum: 8, ratingCount: 2 });
+    await setDoc(doc(f, 'vendors/v1'), { ownerId: 'owner1', name: 'Kusina', isVerified: true, isOpen: true, ratingSum: 8, ratingCount: 2,
+      staffEmails: ['staff@x.com'], loyaltyEnabled: true, loyaltyStamps: 5, loyaltyReward: 'Free iced tea' });
     await setDoc(doc(f, 'vendors/v2'), { ownerId: 'owner2', name: 'Other', isVerified: true, isOpen: true });
     await setDoc(doc(f, 'vendors/v1/products/adobo'), { name: 'Adobo', price: 50, stockQty: 5, isAvailable: true });
     await setDoc(doc(f, 'orders/o1'), order());
@@ -141,6 +144,52 @@ describe('account deletion', () => {
     await assertSucceeds(updateDoc(doc(student(), 'reviews/done1'), { customerName: 'Deleted user' }));
     await assertFails(updateDoc(doc(student(), 'reviews/done1'), { rating: 1 }));
   });
+});
+
+describe('stall staff', () => {
+  const staff = () => db('staffer', { email: 'Staff@X.com', email_verified: true });
+  const stranger = () => db('stranger', { email: 'stranger@x.com', email_verified: true });
+  const unverified = () => db('staffer', { email: 'staff@x.com', email_verified: false });
+  test('listed staff see the stall\'s orders', () =>
+    assertSucceeds(getDocs(query(collection(staff(), 'orders'), where('vendorId', '==', 'v1')))));
+  test('...and move them along', () => assertSucceeds(updateDoc(doc(staff(), 'orders/o1'), { status: 'preparing' })));
+  test('...but cannot change an order\'s total', () => assertFails(updateDoc(doc(staff(), 'orders/o1'), { total: 1 })));
+  test('...can mark an item sold out', () =>
+    assertSucceeds(updateDoc(doc(staff(), 'vendors/v1/products/adobo'), { isAvailable: false })));
+  test('...cannot change prices', () => assertFails(updateDoc(doc(staff(), 'vendors/v1/products/adobo'), { price: 1 })));
+  test('...cannot edit the stall or the staff list', () =>
+    assertFails(updateDoc(doc(staff(), 'vendors/v1'), { staffEmails: ['staff@x.com', 'friend@x.com'] })));
+  test('an unlisted staff account sees nothing', () =>
+    assertFails(getDocs(query(collection(stranger(), 'orders'), where('vendorId', '==', 'v1')))));
+  test('a listed but unverified staff account sees nothing', () =>
+    assertFails(getDocs(query(collection(unverified(), 'orders'), where('vendorId', '==', 'v1')))));
+  test('staff of one stall cannot touch another', () =>
+    assertFails(updateDoc(doc(staff(), 'orders/o2'), { status: 'preparing' })));
+});
+
+describe('loyalty stamp cards', () => {
+  const card = (f, id = 'v1_student1') => doc(f, 'loyalty', id);
+  const stamp = (n) => ({ vendorId: 'v1', customerId: 'student1', stamps: n });
+  test('the stall gives a stamp', () => assertSucceeds(setDoc(card(owner()), stamp(1))));
+  test('staff can give a stamp too', () =>
+    assertSucceeds(setDoc(card(db('staffer', { email: 'staff@x.com', email_verified: true })), stamp(1))));
+  test('a student cannot stamp their own card', () => assertFails(setDoc(card(student()), stamp(99))));
+  test('another stall cannot stamp this stall\'s card', () => assertFails(setDoc(card(otherOwner()), stamp(1))));
+  test('the card id must match stall + student', () => assertFails(setDoc(card(owner(), 'v1_student2'), stamp(1))));
+  test('negative stamps are refused', () => assertFails(setDoc(card(owner()), stamp(-3))));
+  test('the student reads their own card, not others\'', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(card(ctx.firestore()), stamp(3)));
+    await assertSucceeds(getDoc(card(student())));
+    await assertFails(getDoc(card(db('student2'))));
+  });
+});
+
+describe('product add-ons and tags', () => {
+  const save = (d) => setDoc(doc(owner(), 'vendors/v1/products/new'), { name: 'Silog', price: 70, isAvailable: true, ...d });
+  test('a product with add-ons and tags saves', () =>
+    assertSucceeds(save({ addons: [{ name: 'Extra rice', price: 15 }], tags: ['halal', 'spicy'] })));
+  test('more than 10 add-ons is refused', () =>
+    assertFails(save({ addons: Array.from({ length: 11 }, (_, i) => ({ name: `a${i}`, price: 1 })) })));
 });
 
 describe('orders: refunds', () => {

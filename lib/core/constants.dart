@@ -55,6 +55,12 @@ const String kRoleCustomer = 'customer';
 const String kRoleVendor = 'vendor';
 const String kRoleAdmin = 'admin';
 
+/// Works a stall's orders/menu for an owner who listed their email; has no
+/// stall of their own.
+const String kRoleStaff = 'staff';
+
+const String kColLoyalty = 'loyalty';
+
 // ---------------------------------------------------------------------------
 // Payment
 // ---------------------------------------------------------------------------
