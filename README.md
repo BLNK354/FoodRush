@@ -24,14 +24,10 @@ Campus food pre-ordering for LPU — order ahead from campus stalls, **skip the 
 
 ```bash
 flutter pub get
-flutter run -d web-server \
-  --dart-define=FIREBASE_API_KEY=... \
-  --dart-define=FIREBASE_PROJECT_ID=... \
-  --dart-define=FIREBASE_APP_ID=... \
-  --dart-define=FIREBASE_MESSAGING_SENDER_ID=... \
-  --dart-define=FIREBASE_AUTH_DOMAIN=... \
-  --dart-define=FIREBASE_STORAGE_BUCKET=...
+flutter run -d web-server
 ```
+
+The project's Firebase web config is compiled in (`lib/core/constants.dart`). To point a build at a different Firebase project, override any value with `--dart-define=FIREBASE_API_KEY=...` (etc.) or `FIREBASE_*` environment variables on Vercel.
 
 3. **Make yourself admin** — register in the app, then in Firestore set that user's `role` to `admin` (users collection). Sign out/in and you land on the admin dashboard.
 
@@ -44,20 +40,13 @@ The app is a static Flutter web build, so Vercel hosts it natively.
 1. Push this repo to GitHub.
 2. In Vercel: **Add New → Project** → import the repo.
 3. Framework preset: **Other** (the `vercel.json` handles everything).
-4. Add **Environment Variables** (all six): `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_STORAGE_BUCKET`.
-5. Deploy. Every push to the main branch redeploys automatically.
+4. Deploy. No environment variables are needed (the Firebase web config is compiled in); set `FIREBASE_*` ones only to override it. Every push to the main branch redeploys automatically.
 
 ### Option B — Vercel CLI
 
 ```bash
 npm i -g vercel
 vercel login
-export FIREBASE_API_KEY=...
-export FIREBASE_PROJECT_ID=...
-export FIREBASE_APP_ID=...
-export FIREBASE_MESSAGING_SENDER_ID=...
-export FIREBASE_AUTH_DOMAIN=...
-export FIREBASE_STORAGE_BUCKET=...
 vercel --prod
 ```
 
