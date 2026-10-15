@@ -129,6 +129,16 @@ describe('queue counters', () => {
     await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { count: 40, day: yesterday }));
     await assertSucceeds(setDoc(counter(student()), { count: 1, day: today }));
   });
+  test('first order after the stall published its queue size', async () => {
+    // Regression: the stall's app can create the counter with only
+    // `active`; the first student order must still get queue number 1.
+    await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { active: 0 }));
+    await assertSucceeds(setDoc(counter(student()), { count: 1, day: today }, { merge: true }));
+  });
+  test('...and that counter cannot jump either', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(counter(ctx.firestore()), { active: 0 }));
+    await assertFails(setDoc(counter(student()), { count: 7, day: today }, { merge: true }));
+  });
   test('the stall publishes its queue size', () =>
     assertSucceeds(setDoc(counter(owner()), { active: 3 }, { merge: true })));
   test('a student cannot fake the queue size', () =>

@@ -220,12 +220,16 @@ service cloud.firestore {
           && ownsStall(docId.split('_')[1]);
       }
       // Queue numbers only ever go up by one, or restart at 1 on a new day.
+      // The doc may exist without count/day (the stall's app created it to
+      // publish `active` before the first order), so read them with
+      // defaults: a missing field is a rules ERROR, which denies the write.
       function nextQueueNumber() {
         return request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['count', 'day'])
-          && (request.resource.data.count == resource.data.count + 1
+          && (request.resource.data.count == resource.data.get('count', 0) + 1
               || (request.resource.data.count == 1
-                  && request.resource.data.day > resource.data.day));
+                  && (!('day' in resource.data)
+                      || request.resource.data.day > resource.data.day)));
       }
       allow read: if signedIn();
       allow create: if signedIn()
