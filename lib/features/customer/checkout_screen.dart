@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -128,7 +129,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _placing = false);
-      showSnack(context, 'Order failed: $e', error: true);
+      showSnack(context, _orderError(e), error: true);
     }
   }
 
@@ -370,6 +371,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ),
       ),
     );
+  }
+
+  /// Readable reason for a failed order instead of raw Firestore text.
+  static String _orderError(Object e) {
+    if (e is FirebaseException) {
+      return switch (e.code) {
+        'permission-denied' =>
+          'The server refused this order. Only student accounts can order. '
+              'If you are a student, ask the FoodRush admin to check the '
+              'published security rules.',
+        'unavailable' || 'deadline-exceeded' =>
+          'Couldn\'t reach the server. Check your connection and try again.',
+        'aborted' => 'Someone ordered at the same moment. Please try again.',
+        _ => 'Order failed: ${e.message ?? e.code}',
+      };
+    }
+    // placeOrder's own checks (closed stall, out of stock, ...) are already
+    // written for people.
+    return '$e'.replaceFirst('Exception: ', '');
   }
 
   Widget _row(String label, String value, {bool bold = false, Color? color}) {

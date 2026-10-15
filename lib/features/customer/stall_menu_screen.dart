@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/misc.dart';
 import '../../models/product.dart';
+import '../../core/constants.dart';
 import '../../models/user.dart';
+import '../../providers/auth_controller.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/repository.dart';
 import '../../shared/widgets.dart';
@@ -89,6 +91,17 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
   }
 
   Future<void> _addToCart(Product p) async {
+    final role = ref.read(authControllerProvider).role;
+    if (role != kRoleCustomer) {
+      showSnack(
+        context,
+        'Only student accounts can order. You\'re signed in as '
+        '${role == kRoleAdmin ? 'an admin' : 'a stall owner'}. Use a student '
+        'account to place orders.',
+        error: true,
+      );
+      return;
+    }
     if (_vendor?.isOpenNow != true) {
       showSnack(context, 'This stall is currently closed.', error: true);
       return;
