@@ -13,8 +13,13 @@ if ! command -v flutter >/dev/null 2>&1; then
     mkdir -p "${FLUTTER_HOME}"
     curl -fsSL \
       "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
-      | tar -xJ --strip-components=1 -C "${FLUTTER_HOME}"
+      | tar -xJ --no-same-owner --strip-components=1 -C "${FLUTTER_HOME}"
   fi
+  # The SDK is a git checkout. On Vercel the build runs as root while the
+  # files (from the archive, or a cached earlier build) belong to another
+  # uid, so git refuses it ("dubious ownership") and flutter can't even
+  # report its version. Trust this one directory explicitly.
+  git config --global --add safe.directory "${FLUTTER_HOME}"
   export PATH="${FLUTTER_HOME}/bin:${PATH}"
 fi
 
