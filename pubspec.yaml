@@ -37,3 +37,19 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Bundled (not fetched at runtime) so text never flashes in a fallback
+  # font and the installed app works offline. SIL Open Font License, see
+  # assets/fonts/OFL.txt.
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-400.ttf
+        - asset: assets/fonts/PlusJakartaSans-500.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-600.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-700.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-800.ttf
+          weight: 800

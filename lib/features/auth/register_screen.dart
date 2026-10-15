@@ -8,6 +8,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../shared/validation.dart';
+import '../../shared/premium.dart';
 import '../../shared/widgets.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -56,8 +57,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void dispose() {
     for (final c in [
-      _email, _password, _confirm, _fullName, _phone, _studentNumber,
-      _stallName, _stallDescription,
+      _email,
+      _password,
+      _confirm,
+      _fullName,
+      _phone,
+      _studentNumber,
+      _stallName,
+      _stallDescription,
     ]) {
       c.dispose();
     }
@@ -67,23 +74,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreed) {
-      showSnack(context, tr('Please agree to the ground rules to continue.'),
-          error: true);
+      showSnack(
+        context,
+        tr('Please agree to the ground rules to continue.'),
+        error: true,
+      );
       return;
     }
     if (_role == kRoleAdmin && !_bootstrapOpen) {
-      showSnack(context, 'An admin already exists — register as a student or stall owner.',
-          error: true);
+      showSnack(
+        context,
+        'An admin already exists — register as a student or stall owner.',
+        error: true,
+      );
       return;
     }
     setState(() => _busy = true);
-    final err = await ref.read(authControllerProvider.notifier).register(
+    final err = await ref
+        .read(authControllerProvider.notifier)
+        .register(
           email: _email.text,
           password: _password.text,
           fullName: _fullName.text,
           phone: _phone.text,
-          studentNumber:
-              _role == kRoleCustomer ? _studentNumber.text : null,
+          studentNumber: _role == kRoleCustomer ? _studentNumber.text : null,
           role: _role,
           stallName: _stallName.text,
           stallDescription: _stallDescription.text,
@@ -107,11 +121,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(tr('Create your account'),
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              tr('Create your account'),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 20),
 
             // Role picker — the Admin segment only exists while the
@@ -119,22 +134,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             SegmentedButton<String>(
               segments: [
                 ButtonSegment(
-                    value: kRoleCustomer,
-                    icon: Icon(Icons.person_outline),
-                    label: Text(tr('Student'))),
+                  value: kRoleCustomer,
+                  icon: Icon(Icons.person_outline),
+                  label: Text(tr('Student')),
+                ),
                 if (_bootstrapOpen)
                   const ButtonSegment(
-                      value: kRoleAdmin,
-                      icon: Icon(Icons.admin_panel_settings_outlined),
-                      label: Text('Admin')),
+                    value: kRoleAdmin,
+                    icon: Icon(Icons.admin_panel_settings_outlined),
+                    label: Text('Admin'),
+                  ),
                 ButtonSegment(
-                    value: kRoleVendor,
-                    icon: Icon(Icons.storefront_outlined),
-                    label: Text(tr('Stall owner'))),
+                  value: kRoleVendor,
+                  icon: Icon(Icons.storefront_outlined),
+                  label: Text(tr('Stall owner')),
+                ),
                 ButtonSegment(
-                    value: kRoleStaff,
-                    icon: Icon(Icons.badge_outlined),
-                    label: Text(tr('Staff'))),
+                  value: kRoleStaff,
+                  icon: Icon(Icons.badge_outlined),
+                  label: Text(tr('Staff')),
+                ),
               ],
               selected: {_role},
               onSelectionChanged: (s) => setState(() => _role = s.first),
@@ -162,8 +181,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.admin_panel_settings,
-                        color: FrColors.warning, size: 22),
+                    Icon(
+                      Icons.admin_panel_settings,
+                      color: FrColors.warning,
+                      size: 22,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -173,8 +195,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         'exists, so this should only be for the person '
                         'setting up FoodRush.',
                         style: const TextStyle(
-                            fontSize: 12.5, height: 1.45,
-                            fontWeight: FontWeight.w600),
+                          fontSize: 12.5,
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -236,10 +260,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: tr('Password'),
                     obscure: true,
                     maxLength: Limits.password,
-                    validator: (v) =>
-                        v == null || v.length < kMinPasswordLength
-                            ? 'At least $kMinPasswordLength characters'
-                            : null,
+                    validator: (v) => v == null || v.length < kMinPasswordLength
+                        ? 'At least $kMinPasswordLength characters'
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -263,8 +286,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 controller: _stallName,
                 label: 'Stall name',
                 maxLength: Limits.name,
-                validator: (v) => validateText(v,
-                    max: Limits.name, required: true, min: 2, label: 'Stall name'),
+                validator: (v) => validateText(
+                  v,
+                  max: Limits.name,
+                  required: true,
+                  min: 2,
+                  label: 'Stall name',
+                ),
               ),
               const SizedBox(height: 12),
               FrTextField(
@@ -283,8 +311,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline,
-                        color: FrColors.warning, size: 20),
+                    Icon(Icons.info_outline, color: FrColors.warning, size: 20),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -316,23 +343,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            FilledButton(
-              onPressed: _busy ? null : _submit,
-              child: _busy
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(tr('Create account')),
+            GradientButton(
+              onPressed: _submit,
+              busy: _busy,
+              icon: Icons.arrow_forward_rounded,
+              label: tr('Create account'),
             ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(tr('Already have an account?'),
-                    style: TextStyle(color: FrColors.muted)),
+                Text(
+                  tr('Already have an account?'),
+                  style: TextStyle(color: FrColors.muted),
+                ),
                 TextButton(
                   onPressed: () => context.go('/login'),
                   child: Text(tr('Sign in')),
@@ -345,20 +369,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+      body: AuroraBackground(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
               child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 child: Column(
                   children: [
-                    const SizedBox(height: 8),
-                    _compactBrand(),
-                    const SizedBox(height: 20),
-                    Card(
-                      child: Padding(
+                    FadeSlideIn(child: _compactBrand()),
+                    const SizedBox(height: 22),
+                    FadeSlideIn(
+                      index: 2,
+                      child: GlassPanel(
+                        borderRadius: BorderRadius.circular(FrRadius.xl + 4),
                         padding: const EdgeInsets.all(28),
                         child: form,
                       ),
@@ -374,22 +399,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Widget _compactBrand() => Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: FrColors.primary,
-              borderRadius: BorderRadius.circular(FrRadius.lg),
-            ),
-            child: const Icon(Icons.lunch_dining, color: Colors.white, size: 28),
-          ),
-          const SizedBox(height: 10),
-          const Text('FoodRush',
-              style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
-          Text('for $kUniversityName — order ahead, skip the line',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: FrColors.muted)),
-        ],
-      );
+    children: [
+      const BrandMark(size: 60),
+      const SizedBox(height: 14),
+      GradientText(
+        'FoodRush',
+        style: const TextStyle(
+          fontSize: 30,
+          fontWeight: FontWeight.w900,
+          letterSpacing: -1.2,
+        ),
+      ),
+      Text(
+        tr('{u} · order ahead, skip the line', {'u': kUniversityName}),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13.5,
+          color: FrColors.muted,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
 }

@@ -7,6 +7,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/theme_mode.dart';
+import '../../shared/premium.dart';
 import '../../shared/responsive.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
@@ -131,16 +132,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: _busy
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : Text(tr('Sign in')),
+          GradientButton(
+            label: tr('Sign in'),
+            icon: Icons.arrow_forward_rounded,
+            busy: _busy,
+            onPressed: _submit,
           ),
           const SizedBox(height: 12),
           Row(
@@ -166,34 +162,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+      body: AuroraBackground(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1080),
               child: wide
-                  ? Row(
-                      children: [
-                        Expanded(child: _brandPanel()),
-                        const SizedBox(width: 48),
-                        Expanded(
-                          child: Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: form,
+                  ? Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Row(
+                        children: [
+                          Expanded(child: FadeSlideIn(child: _brandPanel())),
+                          const SizedBox(width: 56),
+                          SizedBox(
+                            width: 440,
+                            child: FadeSlideIn(
+                              index: 2,
+                              child: _formCard(form),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     )
                   : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                       child: Column(
                         children: [
-                          const SizedBox(height: 24),
-                          _compactBrand(),
-                          const SizedBox(height: 24),
-                          form,
+                          FadeSlideIn(child: _compactBrand()),
+                          const SizedBox(height: 8),
+                          FadeSlideIn(index: 2, child: _formCard(form)),
                         ],
                       ),
                     ),
@@ -204,22 +201,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  Widget _formCard(Widget form) => GlassPanel(
+        borderRadius: BorderRadius.circular(FrRadius.xl + 4),
+        padding: const EdgeInsets.fromLTRB(28, 32, 28, 20),
+        child: form,
+      );
+
   Widget _compactBrand() => Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: FrColors.primary,
-              borderRadius: BorderRadius.circular(FrRadius.lg),
-            ),
-            child: const Icon(Icons.lunch_dining, color: Colors.white, size: 28),
-          ),
-          const SizedBox(height: 10),
-          const Text('FoodRush',
+          const FloatingFoodScene(height: 210),
+          GradientText('FoodRush',
+              style: const TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.4)),
+          const SizedBox(height: 2),
+          Text(tr('{u} · order ahead, skip the line', {'u': kUniversityName}),
               style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
-          Text('for $kUniversityName — order ahead, skip the line',
-              style: TextStyle(fontSize: 13, color: FrColors.muted)),
+                  fontSize: 13.5,
+                  color: FrColors.muted,
+                  fontWeight: FontWeight.w600)),
         ],
       );
 
@@ -227,34 +228,63 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: FrColors.primary,
-              borderRadius: BorderRadius.circular(FrRadius.lg),
-            ),
-            child: const Icon(Icons.lunch_dining, color: Colors.white, size: 34),
-          ),
-          const SizedBox(height: 20),
-          const Text('FoodRush',
-              style: TextStyle(
-                  fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1)),
-          Text('for $kUniversityName',
-              style: TextStyle(fontSize: 18, color: FrColors.muted)),
-          const SizedBox(height: 16),
-          const Text(
-            'Order ahead. Skip the line.\nPick up at the stall — no deliveries, no waiting.',
-            style: TextStyle(fontSize: 15, height: 1.5),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
+          Row(
             children: [
-              for (final f in ['Order ahead', 'Skip the line', 'GCash & cash'])
-                Chip(
-                  avatar: Icon(Icons.check_circle,
-                      size: 16, color: FrColors.success),
-                  label: Text(f),
+              const BrandMark(size: 48),
+              const SizedBox(width: 14),
+              GradientText('FoodRush',
+                  style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2)),
+            ],
+          ),
+          const FloatingFoodScene(height: 300),
+          Text(
+            tr('Order ahead.\nSkip the line.'),
+            style: TextStyle(
+              fontSize: 46,
+              height: 1.05,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -2,
+              color: FrColors.ink,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            tr('Campus food from your favorite {u} stalls, ready when you '
+                'are. No deliveries, no waiting.', {'u': kUniversityName}),
+            style: TextStyle(fontSize: 16, height: 1.5, color: FrColors.muted),
+          ),
+          const SizedBox(height: 22),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final (icon, label) in [
+                (Icons.bolt_rounded, 'Order ahead'),
+                (Icons.timer_outlined, 'Skip the line'),
+                (Icons.account_balance_wallet_outlined, 'GCash & cash'),
+              ])
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: FrColors.glass,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: FrColors.hairline),
+                    boxShadow: FrShadows.soft,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 17, color: FrColors.primary),
+                      const SizedBox(width: 6),
+                      Text(tr(label),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13)),
+                    ],
+                  ),
                 ),
             ],
           ),

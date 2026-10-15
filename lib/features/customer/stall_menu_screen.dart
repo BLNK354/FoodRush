@@ -13,6 +13,7 @@ import '../../providers/auth_controller.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/repository.dart';
 import '../../shared/validation.dart';
+import '../../shared/premium.dart';
 import '../../shared/widgets.dart';
 
 class StallMenuScreen extends ConsumerStatefulWidget {
@@ -63,8 +64,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
     });
     try {
       final vendor = await Repository.instance.getVendor(widget.vendorId);
-      final products =
-          await Repository.instance.listProducts(widget.vendorId);
+      final products = await Repository.instance.listProducts(widget.vendorId);
       final cats = await Repository.instance.listCategories(widget.vendorId);
       // Extras: the page still works if either fails.
       final reviews = await Repository.instance
@@ -73,11 +73,12 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
       final ahead = await Repository.instance
           .ordersAhead(widget.vendorId)
           .then<int?>((n) => n, onError: (Object _) => null);
-      final stamps = vendor?.hasLoyalty == true &&
+      final stamps =
+          vendor?.hasLoyalty == true &&
               ref.read(authControllerProvider).role == kRoleCustomer
           ? await Repository.instance
-              .getLoyaltyCard(widget.vendorId)
-              .then<int?>((c) => c?.stamps ?? 0, onError: (Object _) => null)
+                .getLoyaltyCard(widget.vendorId)
+                .then<int?>((c) => c?.stamps ?? 0, onError: (Object _) => null)
           : null;
       if (!mounted) return;
       setState(() {
@@ -88,11 +89,13 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
         _products = products.where((p) => p.isAvailable).toList();
         _byCategory = {};
         for (final c in cats) {
-          _byCategory[c.name] =
-              _products.where((p) => p.categoryId == c.id).toList();
+          _byCategory[c.name] = _products
+              .where((p) => p.categoryId == c.id)
+              .toList();
         }
-        final uncategorized =
-            _products.where((p) => p.categoryId == null).toList();
+        final uncategorized = _products
+            .where((p) => p.categoryId == null)
+            .toList();
         if (uncategorized.isNotEmpty) _byCategory['Menu'] = uncategorized;
         _loading = false;
       });
@@ -127,8 +130,11 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
     if (p.addons.isNotEmpty) {
       final room = CartController.maxQtyFor(p) - cart.qtyOfProduct(p.id);
       if (room <= 0) {
-        showSnack(context, 'You can order up to ${CartController.maxQtyFor(p)} of ${p.name}.',
-            error: true);
+        showSnack(
+          context,
+          'You can order up to ${CartController.maxQtyFor(p)} of ${p.name}.',
+          error: true,
+        );
         return;
       }
       final picked = await showModalBottomSheet<(List<Addon>, int)>(
@@ -154,8 +160,12 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
 
     Widget body;
     if (_loading) {
-      body = const Center(child: Padding(
-        padding: EdgeInsets.all(48), child: CircularProgressIndicator()));
+      body = const Center(
+        child: Padding(
+          padding: EdgeInsets.all(48),
+          child: CircularProgressIndicator(),
+        ),
+      );
     } else if (_error != null) {
       body = EmptyState(
         icon: Icons.error_outline,
@@ -174,15 +184,23 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: cartCount > 0
-          ? FloatingActionButton.extended(
-              backgroundColor: FrColors.primary,
-              foregroundColor: Colors.white,
-              onPressed: () => context.go('/cart'),
-              icon: const Icon(Icons.shopping_cart),
-              label: Text('Cart · $cartCount'),
-            )
-          : null,
+      floatingActionButton: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 350),
+        transitionBuilder: (c, a) => ScaleTransition(
+          scale: CurvedAnimation(parent: a, curve: Curves.easeOutBack),
+          child: c,
+        ),
+        child: cartCount > 0
+            ? GradientButton(
+                key: const ValueKey('cart'),
+                expand: false,
+                height: 56,
+                icon: Icons.shopping_bag_outlined,
+                label: tr('Cart · {n}', {'n': cartCount}),
+                onPressed: () => context.go('/cart'),
+              )
+            : const SizedBox.shrink(),
+      ),
       body: body,
     );
   }
@@ -199,23 +217,36 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
+              FadeSlideIn(
+                child: PremiumCard(
+                  gradient: FrGradients.hero,
+                  padding: const EdgeInsets.all(22),
                   child: Row(
                     children: [
                       Container(
-                        width: 72,
-                        height: 72,
+                        width: 84,
+                        height: 84,
                         decoration: BoxDecoration(
-                          color: FrColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(FrRadius.lg),
+                          gradient: v.logoUrl == null
+                              ? FrGradients.sunset
+                              : null,
+                          borderRadius: BorderRadius.circular(FrRadius.xl),
+                          boxShadow: [
+                            BoxShadow(
+                              color: FrColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 9),
+                            ),
+                          ],
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: v.logoUrl != null
                             ? FrImage(v.logoUrl)
-                            : const Icon(Icons.storefront,
-                                color: FrColors.primary, size: 36),
+                            : const Icon(
+                                Icons.storefront_rounded,
+                                color: Colors.white,
+                                size: 40,
+                              ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -225,10 +256,14 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                             Row(
                               children: [
                                 Flexible(
-                                  child: Text(v.name,
-                                      style: const TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w900)),
+                                  child: Text(
+                                    v.name,
+                                    style: const TextStyle(
+                                      fontSize: 26,
+                                      letterSpacing: -0.9,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(width: 10),
                                 StatusChip(
@@ -246,42 +281,59 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 RatingBadge(
-                                    rating: v.rating,
-                                    count: v.ratingCount,
-                                    size: 14),
-                                if (hours != null)
-                                  _Meta(Icons.schedule, hours),
+                                  rating: v.rating,
+                                  count: v.ratingCount,
+                                  size: 14,
+                                ),
+                                if (hours != null) _Meta(Icons.schedule, hours),
                                 if (v.isOpenNow && _ordersAhead != null)
-                                  _Meta(Icons.timer_outlined,
-                                      waitLabel(v, _ordersAhead!)),
+                                  _Meta(
+                                    Icons.timer_outlined,
+                                    waitLabel(v, _ordersAhead!),
+                                  ),
                               ],
                             ),
                             if (v.description != null) ...[
                               const SizedBox(height: 4),
-                              Text(v.description!,
-                                  style: TextStyle(
-                                      color: FrColors.muted, fontSize: 13.5)),
+                              Text(
+                                v.description!,
+                                style: TextStyle(
+                                  color: FrColors.muted,
+                                  fontSize: 13.5,
+                                ),
+                              ),
                             ],
                             if (v.pickupPoint != null) ...[
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  Icon(Icons.place,
-                                      size: 15, color: FrColors.muted),
+                                  Icon(
+                                    Icons.place,
+                                    size: 15,
+                                    color: FrColors.muted,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text(tr('Pickup: {place}', {'place': v.pickupPoint}),
-                                      style: TextStyle(
-                                          color: FrColors.muted,
-                                          fontSize: 13)),
+                                  Text(
+                                    tr('Pickup: {place}', {
+                                      'place': v.pickupPoint,
+                                    }),
+                                    style: TextStyle(
+                                      color: FrColors.muted,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
                           ],
                         ),
                       ),
-                      IconButton(
+                      IconButton.filledTonal(
+                        style: IconButton.styleFrom(
+                          backgroundColor: FrColors.surface,
+                        ),
                         onPressed: () => context.go('/shop'),
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(Icons.close_rounded),
                         tooltip: tr('Back to shop'),
                       ),
                     ],
@@ -320,7 +372,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
               if (_products.length > 4) ...[
                 TextField(
                   inputFormatters: [
-                    LengthLimitingTextInputFormatter(Limits.search)
+                    LengthLimitingTextInputFormatter(Limits.search),
                   ],
                   decoration: InputDecoration(
                     hintText: tr('Search this menu…'),
@@ -342,8 +394,9 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                           avatar: Icon(tagIcon(t), size: 16),
                           label: Text(tagLabel(t)),
                           selected: _tagFilter.contains(t),
-                          onSelected: (on) => setState(() =>
-                              on ? _tagFilter.add(t) : _tagFilter.remove(t)),
+                          onSelected: (on) => setState(
+                            () => on ? _tagFilter.add(t) : _tagFilter.remove(t),
+                          ),
                         ),
                   ],
                 ),
@@ -354,10 +407,11 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
-                      _query.isEmpty
-                          ? 'Nothing on this menu has those tags.'
-                          : 'Nothing on this menu matches "$_query".',
-                      style: TextStyle(color: FrColors.muted)),
+                    _query.isEmpty
+                        ? 'Nothing on this menu has those tags.'
+                        : 'Nothing on this menu matches "$_query".',
+                    style: TextStyle(color: FrColors.muted),
+                  ),
                 ),
 
               // Sections by category
@@ -366,35 +420,42 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                 if (entry.value.isEmpty)
                   Padding(
                     padding: EdgeInsets.only(bottom: 16),
-                    child: Text(tr('Nothing here yet.'),
-                        style: TextStyle(color: FrColors.muted)),
+                    child: Text(
+                      tr('Nothing here yet.'),
+                      style: TextStyle(color: FrColors.muted),
+                    ),
                   )
                 else
-                  LayoutBuilder(builder: (context, c) {
-                    final cols = c.maxWidth > 900
-                        ? 3
-                        : (c.maxWidth > 560 ? 2 : 1);
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: cols,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                        // Fixed height: an aspect ratio left narrow tiles too
-                        // short for name + 2-line description + stock + button.
-                        mainAxisExtent: 172,
-                      ),
-                      itemCount: entry.value.length,
-                      itemBuilder: (context, i) =>
-                          _ProductCard(
-                        product: entry.value[i],
-                        stallOpen: v.isOpenNow,
-                        onAdd: () => _addToCart(entry.value[i]),
-                      ),
-                    );
-                  }),
+                  LayoutBuilder(
+                    builder: (context, c) {
+                      final cols = c.maxWidth > 900
+                          ? 3
+                          : (c.maxWidth > 560 ? 2 : 1);
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        clipBehavior: Clip.none,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: cols,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                          // Fixed height: an aspect ratio left narrow tiles too
+                          // short for name + 2-line description + stock + button.
+                          mainAxisExtent: 176,
+                        ),
+                        itemCount: entry.value.length,
+                        itemBuilder: (context, i) => FadeSlideIn(
+                          key: ValueKey(entry.value[i].id),
+                          index: i,
+                          child: _ProductCard(
+                            product: entry.value[i],
+                            stallOpen: v.isOpenNow,
+                            onAdd: () => _addToCart(entry.value[i]),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 12),
               ],
               const SizedBox(height: 12),
@@ -418,27 +479,32 @@ class _StampCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final need = stall.loyaltyStamps;
     final full = stamps >= need;
-    return Card(
+    return PremiumCard(
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.loyalty_outlined, color: FrColors.secondary),
+                Icon(Icons.loyalty_rounded, color: FrColors.secondary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     full
-                        ? tr('Card full! Ask for {reward} at pickup.',
-                            {'reward': stall.loyaltyReward})
-                        : tr('{have}/{need} stamps · {left} more for {reward}', {
-                            'have': stamps,
-                            'need': need,
-                            'left': need - stamps,
+                        ? tr('Card full! Ask for {reward} at pickup.', {
                             'reward': stall.loyaltyReward,
-                          }),
+                          })
+                        : tr(
+                            '{have}/{need} stamps · {left} more for {reward}',
+                            {
+                              'have': stamps,
+                              'need': need,
+                              'left': need - stamps,
+                              'reward': stall.loyaltyReward,
+                            },
+                          ),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -450,10 +516,42 @@ class _StampCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 for (var i = 0; i < need; i++)
-                  Icon(
-                    i < stamps ? Icons.circle : Icons.circle_outlined,
-                    size: 16,
-                    color: i < stamps ? FrColors.secondary : FrColors.muted,
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: Duration(milliseconds: 300 + 60 * i),
+                    curve: Curves.easeOutBack,
+                    builder: (context, s, child) =>
+                        Transform.scale(scale: s, child: child),
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: i < stamps ? FrGradients.sunset : null,
+                        color: i < stamps ? null : FrColors.surfaceAlt,
+                        border: i < stamps
+                            ? null
+                            : Border.all(color: FrColors.line),
+                        boxShadow: i < stamps
+                            ? [
+                                BoxShadow(
+                                  color: FrColors.secondary.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: i < stamps
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 15,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
                   ),
               ],
             ),
@@ -472,14 +570,13 @@ class _Meta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: FrColors.muted),
-          const SizedBox(width: 4),
-          Text(text,
-              style: TextStyle(color: FrColors.muted, fontSize: 13)),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 15, color: FrColors.muted),
+      const SizedBox(width: 4),
+      Text(text, style: TextStyle(color: FrColors.muted, fontSize: 13)),
+    ],
+  );
 }
 
 class _ReviewsSection extends StatelessWidget {
@@ -497,8 +594,9 @@ class _ReviewsSection extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(bottom: 16),
             child: Text(
-                tr('No reviews yet. Students can rate a stall after picking up.'),
-                style: TextStyle(color: FrColors.muted)),
+              tr('No reviews yet. Students can rate a stall after picking up.'),
+              style: TextStyle(color: FrColors.muted),
+            ),
           )
         else
           for (final r in reviews)
@@ -525,14 +623,18 @@ class _ReviewsSection extends StatelessWidget {
                             _reviewer(r),
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                         if (r.createdAt != null)
                           Text(
                             '${r.createdAt!.month}/${r.createdAt!.day}/${r.createdAt!.year}',
                             style: TextStyle(
-                                color: FrColors.muted, fontSize: 12),
+                              color: FrColors.muted,
+                              fontSize: 12,
+                            ),
                           ),
                       ],
                     ),
@@ -549,8 +651,10 @@ class _ReviewsSection extends StatelessWidget {
                           color: FrColors.muted.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(FrRadius.sm),
                         ),
-                        child: Text('Reply from ${vendor.name}: ${r.reply}',
-                            style: const TextStyle(fontSize: 13)),
+                        child: Text(
+                          'Reply from ${vendor.name}: ${r.reply}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
                       ),
                     ],
                   ],
@@ -569,7 +673,6 @@ class _ReviewsSection extends StatelessWidget {
     return '${parts.first} ${parts.last[0]}.';
   }
 }
-
 
 /// Bottom sheet to choose add-ons and quantity; pops with (addons, qty).
 class _AddonPicker extends StatefulWidget {
@@ -598,10 +701,14 @@ class _AddonPickerState extends State<_AddonPicker> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(p.name,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            Text('${peso(p.price)} · pick any extras',
-                style: TextStyle(color: FrColors.muted)),
+            Text(
+              p.name,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            Text(
+              '${peso(p.price)} · pick any extras',
+              style: TextStyle(color: FrColors.muted),
+            ),
             const SizedBox(height: 8),
             Flexible(
               child: ListView(
@@ -612,10 +719,13 @@ class _AddonPickerState extends State<_AddonPicker> {
                       contentPadding: EdgeInsets.zero,
                       value: _chosen.contains(a),
                       onChanged: (on) => setState(
-                          () => on == true ? _chosen.add(a) : _chosen.remove(a)),
+                        () => on == true ? _chosen.add(a) : _chosen.remove(a),
+                      ),
                       title: Text(a.name),
-                      secondary: Text(a.price == 0 ? 'Free' : '+${peso(a.price)}',
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      secondary: Text(
+                        a.price == 0 ? 'Free' : '+${peso(a.price)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                 ],
               ),
@@ -628,17 +738,30 @@ class _AddonPickerState extends State<_AddonPicker> {
                   onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
                   icon: const Icon(Icons.remove_circle_outline),
                 ),
-                Text('$_qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                Text(
+                  '$_qty',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 IconButton(
                   tooltip: 'One more',
-                  onPressed: _qty < widget.maxQty ? () => setState(() => _qty++) : null,
+                  onPressed: _qty < widget.maxQty
+                      ? () => setState(() => _qty++)
+                      : null,
                   icon: const Icon(Icons.add_circle_outline),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.pop(
-                        context, ([for (final a in p.addons) if (_chosen.contains(a)) a], _qty)),
+                    onPressed: () => Navigator.pop(context, (
+                      [
+                        for (final a in p.addons)
+                          if (_chosen.contains(a)) a,
+                      ],
+                      _qty,
+                    )),
                     child: Text('Add · ${peso(_unit * _qty)}'),
                   ),
                 ),
@@ -664,9 +787,10 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return TiltCard(
+      maxTilt: 0.07,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -681,23 +805,29 @@ class _ProductCard extends StatelessWidget {
                         Row(
                           children: [
                             Flexible(
-                              child: Text(product.name,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800, fontSize: 15)),
+                              child: Text(
+                                product.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
                             ),
                             for (final t in product.tags)
                               Padding(
                                 padding: const EdgeInsets.only(left: 4),
                                 child: Tooltip(
                                   message: tagLabel(t),
-                                  child: Icon(tagIcon(t),
-                                      size: 15,
-                                      color: t == 'spicy'
-                                          ? FrColors.danger
-                                          : t == 'bestseller'
-                                              ? FrColors.warning
-                                              : FrColors.success),
+                                  child: Icon(
+                                    tagIcon(t),
+                                    size: 15,
+                                    color: t == 'spicy'
+                                        ? FrColors.danger
+                                        : t == 'bestseller'
+                                        ? FrColors.warning
+                                        : FrColors.success,
+                                  ),
                                 ),
                               ),
                           ],
@@ -709,7 +839,9 @@ class _ProductCard extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                                color: FrColors.muted, fontSize: 12.5),
+                              color: FrColors.muted,
+                              fontSize: 12.5,
+                            ),
                           ),
                         ],
                         if (product.stockQty != null)
@@ -717,7 +849,9 @@ class _ProductCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               product.stockQty! <= 5
-                                  ? tr('Only {n} left!', {'n': product.stockQty})
+                                  ? tr('Only {n} left!', {
+                                      'n': product.stockQty,
+                                    })
                                   : tr('{n} in stock', {'n': product.stockQty}),
                               style: TextStyle(
                                 fontSize: 11.5,
@@ -732,17 +866,34 @@ class _ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Container(
-                    width: 56,
-                    height: 56,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
-                      color: FrColors.cream,
-                      borderRadius: BorderRadius.circular(FrRadius.md),
+                      gradient: product.imageUrl == null
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                FrColors.secondary.withValues(alpha: 0.18),
+                                FrColors.primary.withValues(alpha: 0.12),
+                              ],
+                            )
+                          : null,
+                      borderRadius: BorderRadius.circular(FrRadius.lg),
+                      boxShadow: product.imageUrl == null
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 12,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: product.imageUrl != null
                         ? FrImage(product.imageUrl)
-                        : const Icon(Icons.fastfood,
-                            color: FrColors.secondary),
+                        : const Icon(Icons.fastfood, color: FrColors.secondary),
                   ),
                 ],
               ),
@@ -750,28 +901,29 @@ class _ProductCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Text(peso(product.price),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                        color: FrColors.primary)),
+                Text(
+                  peso(product.price),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: FrColors.primary,
+                  ),
+                ),
                 if (product.addons.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: 6),
-                    child: Text(tr('+ extras'),
-                        style: TextStyle(color: FrColors.muted, fontSize: 11.5)),
+                    child: Text(
+                      tr('+ extras'),
+                      style: TextStyle(color: FrColors.muted, fontSize: 11.5),
+                    ),
                   ),
                 const Spacer(),
-                FilledButton.tonal(
+                GradientButton(
+                  expand: false,
+                  height: 40,
+                  icon: Icons.add_rounded,
+                  label: tr('Add'),
                   onPressed: stallOpen ? onAdd : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: FrColors.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                  child: Text(tr('Add'),
-                      style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ],
             ),

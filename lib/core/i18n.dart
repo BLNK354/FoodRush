@@ -35,6 +35,13 @@ const Map<String, String> _fil = {
 
   // ---- login / register / verify
   'Welcome back': 'Welcome back!',
+  'Order ahead.\nSkip the line.': 'Order na.\nWala nang pila.',
+  'Campus food from your favorite {u} stalls, ready when you are. No deliveries, no waiting.':
+      'Pagkain mula sa paborito mong {u} stalls, handa pagdating mo. Walang delivery, walang hintay.',
+  '{u} · order ahead, skip the line': '{u} · order na, wala nang pila',
+  'Order ahead': 'Mag-order nang maaga',
+  'Skip the line': 'Wala nang pila',
+  'GCash & cash': 'GCash at cash',
   'Sign in to skip the line at your favorite stalls.':
       'Mag-sign in para hindi na pumila sa paborito mong stall.',
   'Email': 'Email',
@@ -79,6 +86,12 @@ const Map<String, String> _fil = {
   'Stalls on campus — order ahead, pick up when it\'s ready.':
       'Mga stall sa campus — mag-order na, kunin pag ready na.',
   'Search stalls or food…': 'Maghanap ng stall o pagkain…',
+  'Stalls on campus': 'Mga stall sa campus',
+  'Good morning': 'Magandang umaga',
+  'Lunch time': 'Tanghalian na',
+  'Good afternoon': 'Magandang hapon',
+  'Hungry? Skip the line.': 'Gutom? Wala nang pila.',
+  '{n} open now': '{n} bukas ngayon',
   'Could not load stalls': 'Hindi ma-load ang mga stall',
   'No stalls yet': 'Wala pang stall',
   'Check back soon — new stalls are added as they are verified.':

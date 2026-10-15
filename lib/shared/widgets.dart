@@ -7,6 +7,7 @@ import '../core/constants.dart';
 import '../core/i18n.dart';
 import '../core/theme.dart';
 import '../models/user.dart';
+import 'premium.dart';
 
 // ---------------------------------------------------------------------------
 // Page scaffold (nav rails are provided by role shells)
@@ -20,6 +21,9 @@ class FrPage extends StatelessWidget {
   final List<Widget> children;
   final EdgeInsets padding;
 
+  /// False when the first child is its own hero header.
+  final bool showHeader;
+
   const FrPage({
     super.key,
     required this.title,
@@ -27,6 +31,7 @@ class FrPage extends StatelessWidget {
     this.actions,
     required this.children,
     this.padding = const EdgeInsets.all(24),
+    this.showHeader = true,
   });
 
   @override
@@ -34,32 +39,45 @@ class FrPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w800)),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(subtitle!,
-                          style: TextStyle(
-                              color: FrColors.muted, fontSize: 13.5)),
+        if (showHeader)
+          FadeSlideIn(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1100),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            if (subtitle != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle!,
+                                style: TextStyle(
+                                  color: FrColors.muted,
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      ...?actions,
                     ],
-                  ],
+                  ),
                 ),
               ),
-              ...?actions,
-            ],
+            ),
           ),
-        ),
         Expanded(
           child: SingleChildScrollView(
             padding: padding,
@@ -74,7 +92,10 @@ class FrPage extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 1100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: children,
+                  children: [
+                    for (var i = 0; i < children.length; i++)
+                      FadeSlideIn(index: i + 1, child: children[i]),
+                  ],
                 ),
               ),
             ),
@@ -106,9 +127,10 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? FrColors.primary;
-    return Card(
+    return PremiumCard(
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         // Column, not Row: at phone widths a Row squeezes the text column so
         // hard that words break mid-letter ("Custo mers").
         child: Column(
@@ -118,13 +140,24 @@ class StatCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: c.withValues(alpha: 0.12),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color.lerp(c, Colors.white, 0.25)!, c],
+                    ),
                     borderRadius: BorderRadius.circular(FrRadius.md),
+                    boxShadow: [
+                      BoxShadow(
+                        color: c.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: c, size: 22),
+                  child: Icon(icon, color: Colors.white, size: 21),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -137,10 +170,15 @@ class StatCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+              ),
+            ),
           ],
         ),
       ),
@@ -170,11 +208,17 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 56, color: FrColors.muted.withValues(alpha: 0.5)),
-            const SizedBox(height: 12),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w700)),
+            _FloatingOrb(icon: icon),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
+              ),
+            ),
             if (message != null) ...[
               const SizedBox(height: 4),
               Text(
@@ -183,10 +227,62 @@ class EmptyState extends StatelessWidget {
                 style: TextStyle(color: FrColors.muted, fontSize: 13.5),
               ),
             ],
-            if (action != null) ...[const SizedBox(height: 16), action!],
+            if (action != null) ...[const SizedBox(height: 20), action!],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// EmptyState's gently bobbing 3D orb.
+class _FloatingOrb extends StatefulWidget {
+  final IconData icon;
+  const _FloatingOrb({required this.icon});
+
+  @override
+  State<_FloatingOrb> createState() => _FloatingOrbState();
+}
+
+class _FloatingOrbState extends State<_FloatingOrb>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (reduceMotion(context)) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final v = Curves.easeInOut.transform(_c.value);
+        return Transform.translate(
+          offset: Offset(0, -8 * v),
+          child: ClayOrb(
+            icon: widget.icon,
+            size: 84,
+            colors: const [Color(0xFFFFB199), Color(0xFFE5484D)],
+            shadowLift: v,
+          ),
+        );
+      },
     );
   }
 }
@@ -213,27 +309,39 @@ class StatusChip extends StatelessWidget {
   }
 
   static StatusChip proof(String status) => switch (status) {
-        'pending' => StatusChip('Pending review', color: FrColors.warning),
-        'verified' => StatusChip('Verified', color: FrColors.success),
-        'rejected' => StatusChip('Rejected', color: FrColors.danger),
-        _ => StatusChip(status, color: FrColors.muted),
-      };
+    'pending' => StatusChip('Pending review', color: FrColors.warning),
+    'verified' => StatusChip('Verified', color: FrColors.success),
+    'rejected' => StatusChip('Rejected', color: FrColors.danger),
+    _ => StatusChip(status, color: FrColors.muted),
+  };
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.fromLTRB(8, 5, 11, 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(FrRadius.sm),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -245,8 +353,11 @@ class StatusChip extends StatelessWidget {
 class OrderProgressBar extends StatelessWidget {
   final String status;
   final String paymentMethod;
-  const OrderProgressBar(
-      {super.key, required this.status, required this.paymentMethod});
+  const OrderProgressBar({
+    super.key,
+    required this.status,
+    required this.paymentMethod,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -268,13 +379,30 @@ class OrderProgressBar extends StatelessWidget {
               if (i > 0) const SizedBox(width: 4),
               Expanded(
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 6,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOutCubic,
+                  height: 7,
                   decoration: BoxDecoration(
                     color: i <= idx
-                        ? color
-                        : FrColors.muted.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(3),
+                        ? null
+                        : FrColors.muted.withValues(alpha: 0.16),
+                    gradient: i <= idx
+                        ? LinearGradient(
+                            colors: [
+                              Color.lerp(color, Colors.white, 0.25)!,
+                              color,
+                            ],
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: i == idx
+                        ? [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.4),
+                              blurRadius: 8,
+                            ),
+                          ]
+                        : null,
                   ),
                 ),
               ),
@@ -286,9 +414,10 @@ class OrderProgressBar extends StatelessWidget {
           'Step ${idx + 1} of ${steps.length} · '
           '${kOrderStatusLabels[status] ?? status}',
           style: TextStyle(
-              fontSize: 11.5,
-              color: FrColors.muted,
-              fontWeight: FontWeight.w600),
+            fontSize: 11.5,
+            color: FrColors.muted,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -300,28 +429,39 @@ class RatingBadge extends StatelessWidget {
   final double? rating;
   final int count;
   final double size;
-  const RatingBadge(
-      {super.key, required this.rating, required this.count, this.size = 13});
+  const RatingBadge({
+    super.key,
+    required this.rating,
+    required this.count,
+    this.size = 13,
+  });
 
   @override
   Widget build(BuildContext context) {
     final r = rating;
     if (r == null || count == 0) {
-      return Text(tr('New'),
-          style: TextStyle(
-              fontSize: size - 1,
-              color: FrColors.muted,
-              fontWeight: FontWeight.w700));
+      return Text(
+        tr('New'),
+        style: TextStyle(
+          fontSize: size - 1,
+          color: FrColors.muted,
+          fontWeight: FontWeight.w700,
+        ),
+      );
     }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.star_rounded, size: size + 3, color: FrColors.warning),
         const SizedBox(width: 2),
-        Text(r.toStringAsFixed(1),
-            style: TextStyle(fontSize: size, fontWeight: FontWeight.w800)),
-        Text(' ($count)',
-            style: TextStyle(fontSize: size - 1, color: FrColors.muted)),
+        Text(
+          r.toStringAsFixed(1),
+          style: TextStyle(fontSize: size, fontWeight: FontWeight.w800),
+        ),
+        Text(
+          ' ($count)',
+          style: TextStyle(fontSize: size - 1, color: FrColors.muted),
+        ),
       ],
     );
   }
@@ -332,8 +472,12 @@ class StarPicker extends StatelessWidget {
   final int value; // 0 = none yet
   final ValueChanged<int>? onChanged;
   final double size;
-  const StarPicker(
-      {super.key, required this.value, this.onChanged, this.size = 36});
+  const StarPicker({
+    super.key,
+    required this.value,
+    this.onChanged,
+    this.size = 36,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -367,20 +511,20 @@ String waitLabel(Vendor v, int ordersAhead) {
 
 /// Display name / icon for a product tag (see kProductTags).
 String tagLabel(String tag) => switch (tag) {
-      'halal' => tr('Halal'),
-      'vegetarian' => tr('Vegetarian'),
-      'spicy' => tr('Spicy'),
-      'bestseller' => tr('Bestseller'),
-      _ => tag,
-    };
+  'halal' => tr('Halal'),
+  'vegetarian' => tr('Vegetarian'),
+  'spicy' => tr('Spicy'),
+  'bestseller' => tr('Bestseller'),
+  _ => tag,
+};
 
 IconData tagIcon(String tag) => switch (tag) {
-      'halal' => Icons.verified_outlined,
-      'vegetarian' => Icons.eco_outlined,
-      'spicy' => Icons.local_fire_department_outlined,
-      'bestseller' => Icons.star_outline,
-      _ => Icons.label_outline,
-    };
+  'halal' => Icons.verified_outlined,
+  'vegetarian' => Icons.eco_outlined,
+  'spicy' => Icons.local_fire_department_outlined,
+  'bestseller' => Icons.star_outline,
+  _ => Icons.label_outline,
+};
 
 /// "12:30 PM".
 String fmtClock(DateTime t) {
@@ -440,11 +584,13 @@ class FrTextField extends StatelessWidget {
       inputFormatters: inputFormatters,
       onFieldSubmitted: onSubmitted,
       // A live "12/300" counter only on long free-text fields.
-      buildCounter: (context,
-              {required currentLength, required isFocused, maxLength}) =>
-          maxLength != null && maxLength >= 150 && isFocused
-              ? Text('$currentLength/$maxLength',
-                  style: const TextStyle(fontSize: 11))
+      buildCounter:
+          (context, {required currentLength, required isFocused, maxLength}) =>
+              maxLength != null && maxLength >= 150 && isFocused
+              ? Text(
+                  '$currentLength/$maxLength',
+                  style: const TextStyle(fontSize: 11),
+                )
               : null,
       decoration: InputDecoration(
         labelText: label,
@@ -468,9 +614,14 @@ class SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(title,
-                style: const TextStyle(
-                    fontSize: 16.5, fontWeight: FontWeight.w800)),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
           ),
           if (trailing != null) trailing!,
         ],
@@ -499,7 +650,13 @@ class FrImage extends StatelessWidget {
   final double? width;
   final double? height;
 
-  const FrImage(this.url, {super.key, this.fit = BoxFit.cover, this.width, this.height});
+  const FrImage(
+    this.url, {
+    super.key,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -531,11 +688,11 @@ void showSnack(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context)
     ..clearSnackBars()
     ..showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: error ? FrColors.danger : null,
-    ),
-  );
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? FrColors.danger : null,
+      ),
+    );
 }
 
 Future<bool> confirmDialog(

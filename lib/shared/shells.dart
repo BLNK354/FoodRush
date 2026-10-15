@@ -6,6 +6,8 @@ import '../core/i18n.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
 import '../providers/auth_controller.dart';
+import '../providers/cart_provider.dart';
+import 'premium.dart';
 import 'responsive.dart';
 
 // ---------------------------------------------------------------------------
@@ -41,54 +43,106 @@ class CustomerShell extends ConsumerWidget {
     final loc = GoRouterState.of(context).matchedLocation;
     final wide = !FrBreakpoints.isCompact(MediaQuery.sizeOf(context).width);
     final auth = ref.watch(authControllerProvider);
+    final cartCount = ref.watch(cartProvider).fold(0, (s, l) => s + l.qty);
+    final index = _index(loc);
+    final initial = auth.profile?.fullName.isNotEmpty == true
+        ? auth.profile!.fullName[0].toUpperCase()
+        : '?';
 
-    final appBar = AppBar(
-      title: Text('FoodRush · $kUniversityName',
-          style: const TextStyle(color: FrColors.primary)),
-      actions: [
-        IconButton(
-          tooltip: tr('My profile'),
-          icon: const Icon(Icons.account_circle_outlined),
-          onPressed: () => context.go('/profile'),
+    final appBar = PreferredSize(
+      preferredSize: const Size.fromHeight(64),
+      child: GlassPanel(
+        blur: 20,
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 64,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const BrandMark(size: 36),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        GradientText('FoodRush',
+                            style: const TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.8)),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(kUniversityName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: FrColors.muted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Tooltip(
+                    message: tr('My profile'),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => context.go('/profile'),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: FrGradients.sunset,
+                        ),
+                        child: Text(initial,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: tr('Sign out'),
+                    icon: Icon(Icons.logout_rounded, color: FrColors.muted),
+                    onPressed: () =>
+                        ref.read(authControllerProvider.notifier).signOut(),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        IconButton(
-          tooltip: tr('Sign out'),
-          icon: const Icon(Icons.logout),
-          onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
-        ),
-      ],
+      ),
     );
 
     return Scaffold(
+      extendBodyBehindAppBar: false,
+      extendBody: false,
       appBar: appBar,
       body: Row(
         children: [
           if (wide)
             NavigationRail(
-              selectedIndex: _index(loc),
+              selectedIndex: index,
               onDestinationSelected: (i) => context.go(_customerDests[i].path),
               labelType: NavigationRailLabelType.all,
-              leading: auth.profile == null
-                  ? null
-                  : Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: CircleAvatar(
-                        backgroundColor: FrColors.primary.withValues(alpha: 0.12),
-                        child: Text(
-                          auth.profile!.fullName.isNotEmpty
-                              ? auth.profile!.fullName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                              color: FrColors.primary,
-                              fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    ),
               destinations: [
                 for (final d in _customerDests)
                   NavigationRailDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
+                    icon: _CartBadge(
+                        show: d.path == '/cart',
+                        count: cartCount,
+                        child: Icon(d.icon)),
+                    selectedIcon: _CartBadge(
+                        show: d.path == '/cart',
+                        count: cartCount,
+                        child: Icon(d.selectedIcon)),
                     label: Text(tr(d.label)),
                   ),
               ],
@@ -98,18 +152,181 @@ class CustomerShell extends ConsumerWidget {
       ),
       bottomNavigationBar: wide
           ? null
-          : NavigationBar(
-              selectedIndex: _index(loc),
-              onDestinationSelected: (i) => context.go(_customerDests[i].path),
-              destinations: [
-                for (final d in _customerDests)
-                  NavigationDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
-                    label: tr(d.label),
-                  ),
-              ],
+          : _FloatingNavBar(
+              index: index,
+              cartCount: cartCount,
+              onSelect: (i) => context.go(_customerDests[i].path),
             ),
+    );
+  }
+}
+
+/// Count bubble on the cart icon; pops when the number changes.
+class _CartBadge extends StatelessWidget {
+  final bool show;
+  final int count;
+  final Widget child;
+  const _CartBadge(
+      {required this.show, required this.count, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!show || count == 0) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          right: -9,
+          top: -7,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey(count),
+            tween: Tween(begin: 0.4, end: 1),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.elasticOut,
+            builder: (context, s, child) =>
+                Transform.scale(scale: s, child: child),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 18),
+              height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: FrGradients.brand,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: FrColors.surface, width: 1.5),
+              ),
+              child: Text('$count',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Phone navigation: a floating frosted pill with a sliding gradient
+/// indicator under the selected tab.
+class _FloatingNavBar extends StatelessWidget {
+  final int index;
+  final int cartCount;
+  final ValueChanged<int> onSelect;
+  const _FloatingNavBar(
+      {required this.index, required this.cartCount, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: FrShadows.raised,
+        ),
+        child: GlassPanel(
+          borderRadius: BorderRadius.circular(26),
+          padding: const EdgeInsets.all(6),
+          child: SizedBox(
+            height: 58,
+            child: LayoutBuilder(builder: (context, box) {
+              final w = box.maxWidth / _customerDests.length;
+              return Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 380),
+                    curve: Curves.easeOutBack,
+                    left: w * index,
+                    top: 0,
+                    bottom: 0,
+                    width: w,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: FrGradients.brand,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: FrColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 14,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      for (var i = 0; i < _customerDests.length; i++)
+                        Expanded(
+                          child: Semantics(
+                            selected: i == index,
+                            button: true,
+                            label: tr(_customerDests[i].label),
+                            excludeSemantics: true,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () => onSelect(i),
+                              child: _NavItem(
+                                dest: _customerDests[i],
+                                selected: i == index,
+                                badge: _customerDests[i].path == '/cart'
+                                    ? cartCount
+                                    : 0,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final _CustomerDest dest;
+  final bool selected;
+  final int badge;
+  const _NavItem(
+      {required this.dest, required this.selected, required this.badge});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? Colors.white : FrColors.muted;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        AnimatedScale(
+          scale: selected ? 1.1 : 1,
+          duration: const Duration(milliseconds: 250),
+          child: _CartBadge(
+            show: badge > 0,
+            count: badge,
+            child: Icon(selected ? dest.selectedIcon : dest.icon,
+                color: color, size: 23),
+          ),
+        ),
+        const SizedBox(height: 3),
+        AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 200),
+          style: TextStyle(
+            fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+            color: color,
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+          ),
+          child: Text(tr(dest.label), overflow: TextOverflow.ellipsis),
+        ),
+      ],
     );
   }
 }
