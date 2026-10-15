@@ -14,7 +14,8 @@ import {
 } from 'firebase/firestore';
 
 let env;
-const as = (uid) => (uid ? env.authenticatedContext(uid) : env.unauthenticatedContext()).firestore();
+// Attackers get a verified email: each attack must fail for its own reason.
+const as = (uid) => (uid ? env.authenticatedContext(uid, { email_verified: true }) : env.unauthenticatedContext()).firestore();
 const HUGE = 'x'.repeat(200_000);
 const today = Timestamp.fromDate(new Date());
 

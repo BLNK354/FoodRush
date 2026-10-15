@@ -26,6 +26,9 @@ service cloud.firestore {
             || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isActive', true) != false);
     }
     function me() { return request.auth.uid; }
+    // The account proved it owns its email inbox (Firebase verification
+    // link). Required to order or review, so the LPU-email gate is real.
+    function verified() { return request.auth.token.email_verified == true; }
     function myRole() { return get(/databases/$(database)/documents/users/$(me())).data.role; }
     function isAdmin() { return signedIn() && myRole() == 'admin'; }
     function isCustomer() { return signedIn() && myRole() == 'customer'; }
@@ -92,7 +95,9 @@ service cloud.firestore {
         && validChanges()
         && (!changed().hasAny(['lastOrderAt']) || stampsOrderTime());
       allow update: if isAdmin() && validChanges();
-      allow delete: if isAdmin();
+      // Admins, or the student deleting their own account (the app first
+      // anonymises their orders/reviews and refuses while orders are active).
+      allow delete: if isAdmin() || (request.auth != null && uid == request.auth.uid);
     }
 
     // --------------------------------------------------------- vendors -----
@@ -201,7 +206,7 @@ service cloud.firestore {
       // be internally consistent; whether the line PRICES match the menu
       // can't be checked here (rules can't loop over items), so the stall's
       // order screen re-checks them against its live menu.
-      allow create: if isCustomer()
+      allow create: if isCustomer() && verified()
         && request.resource.data.customerId == me()
         && request.resource.data.paymentMethod in ['gcash', 'cash']
         && request.resource.data.status
@@ -241,6 +246,10 @@ service cloud.firestore {
             && resource.data.status == 'awaiting_payment'
             && changed().hasOnly(['receiptUrl', 'receiptStatus', 'status', 'paymentStatus'])
             && str(request.resource.data.receiptUrl, 1, 700000))
+          ||
+          // deleting their account: remove their name, nothing else
+          (changed().hasOnly(['customerName'])
+            && request.resource.data.customerName == 'Deleted user')
         );
 
       // Stall/admin progress the order through the flow, but the stall can't
@@ -299,7 +308,7 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       function reviewedOrder() { return get(/databases/$(database)/documents/orders/$(reviewId)).data; }
       allow read: if true;
-      allow create: if signedIn()
+      allow create: if signedIn() && verified()
         && request.resource.data.customerId == me()
         && request.resource.data.orderId == reviewId
         && reviewedOrder().customerId == me()
@@ -310,6 +319,10 @@ service cloud.firestore {
         && request.resource.data.rating <= 5
         && optStr(request.resource.data.get('comment', null), 500)
         && optStr(request.resource.data.get('customerName', null), 60);
+      // Deleting their account: the reviewer removes their name, nothing else.
+      allow update: if signedIn() && resource.data.customerId == me()
+        && changed().hasOnly(['customerName'])
+        && request.resource.data.customerName == 'Deleted user';
       // The stall may add/edit its public reply, nothing else.
       allow update: if ownsStall(resource.data.vendorId)
         && changed().hasOnly(['reply', 'repliedAt'])

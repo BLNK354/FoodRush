@@ -112,6 +112,13 @@ String? readPref(String key) {
   }
 }
 
+/// Raw sessionStorage write (no app prefix), for library-owned keys.
+void writeSessionValue(String key, String value) {
+  try {
+    web.window.sessionStorage.setItem(key, value);
+  } catch (_) {}
+}
+
 void writePref(String key, String value) {
   try {
     web.window.localStorage.setItem('foodrush.$key', value);

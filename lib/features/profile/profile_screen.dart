@@ -68,6 +68,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _deleteAccount(BuildContext context) async {
+    final password = await showDialog<String>(
+      context: context,
+      builder: (_) => const _DeleteAccountDialog(),
+    );
+    if (password == null || !mounted) return;
+    final err =
+        await ref.read(authControllerProvider.notifier).deleteMyAccount(password);
+    if (!mounted) return;
+    if (err != null) {
+      showSnack(this.context, err, error: true);
+    }
+    // On success the auth listener signs out and the router shows login.
+  }
+
   Future<void> _sendReset(String email) async {
     setState(() => _sendingReset = true);
     final err = await ref
@@ -243,6 +258,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       style: TextStyle(color: FrColors.danger),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  if (isCustomer)
+                    TextButton.icon(
+                      onPressed: () => _deleteAccount(context),
+                      icon: Icon(Icons.delete_forever, color: FrColors.danger),
+                      label: Text('Delete my account',
+                          style: TextStyle(color: FrColors.danger)),
+                    )
+                  else
+                    Text(
+                      'To close a staff or admin account, ask a FoodRush admin.',
+                      style: TextStyle(color: FrColors.muted, fontSize: 12.5),
+                    ),
+                  TextButton(
+                    onPressed: () => context.push('/privacy'),
+                    child: const Text('Privacy notice'),
+                  ),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -250,6 +282,77 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Confirms account deletion: explains what happens, asks for the password
+/// (Firebase needs a fresh sign-in) and an explicit tick. Pops with it.
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _password = TextEditingController();
+  bool _understood = false;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Delete your account?'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'This permanently deletes your profile, favourites and login. '
+              'Your name is removed from past orders and reviews; stalls keep '
+              'the anonymous sales record. This cannot be undone.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _password,
+              obscureText: true,
+              maxLength: 128,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                  labelText: 'Your password', counterText: ''),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _understood,
+              onChanged: (v) => setState(() => _understood = v ?? false),
+              title: const Text('I understand this is permanent',
+                  style: TextStyle(fontSize: 13)),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: FrColors.danger),
+          onPressed: !_understood || _password.text.isEmpty
+              ? null
+              : () => Navigator.pop(context, _password.text),
+          child: const Text('Delete forever'),
+        ),
+      ],
     );
   }
 }

@@ -11,7 +11,7 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, doc, getDoc, getDocs, increment, query, serverTimestamp, setDoc,
+  collection, deleteDoc, doc, getDoc, getDocs, increment, query, serverTimestamp, setDoc,
   Timestamp, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
@@ -24,7 +24,9 @@ function inOrderTxn(f, uid, writes) {
 }
 
 let env;
-const db = (uid) => (uid ? env.authenticatedContext(uid) : env.unauthenticatedContext()).firestore();
+// Signed-in test users have confirmed their email unless a test says so.
+const db = (uid, token = { email_verified: true }) =>
+  (uid ? env.authenticatedContext(uid, token) : env.unauthenticatedContext()).firestore();
 const student = () => db('student1');
 const otherStudent = () => db('student2');
 const owner = () => db('owner1');
@@ -109,6 +111,36 @@ describe('orders: tampering on create', () => {
     assertFails(inOrderTxn(db('banned'), 'banned', (b, f) => b.set(doc(f, 'orders/new'), order({ customerId: 'banned' })))));
   test('an order without the anti-spam stamp is refused', () =>
     assertFails(setDoc(doc(student(), 'orders/new'), order())));
+});
+
+describe('email verification', () => {
+  const unverified = () => db('student1', { email_verified: false });
+  test('an unverified student cannot order', () =>
+    assertFails(inOrderTxn(unverified(), 'student1', (b, f) => b.set(doc(f, 'orders/new'), order()))));
+  test('an unverified student cannot review', () =>
+    assertFails(setDoc(doc(unverified(), 'reviews/done1'),
+      { orderId: 'done1', customerId: 'student1', vendorId: 'v1', rating: 5 })));
+  test('a verified student can order', () =>
+    assertSucceeds(inOrderTxn(student(), 'student1', (b, f) => b.set(doc(f, 'orders/new'), order()))));
+});
+
+describe('account deletion', () => {
+  test('a student deletes their own profile', () => assertSucceeds(deleteDoc(doc(student(), 'users/student1'))));
+  test('...but not someone else\'s', () => assertFails(deleteDoc(doc(student(), 'users/student2'))));
+  test('a student removes their name from their own order', () =>
+    assertSucceeds(updateDoc(doc(student(), 'orders/o1'), { customerName: 'Deleted user' })));
+  test('...only to "Deleted user"', () =>
+    assertFails(updateDoc(doc(student(), 'orders/o1'), { customerName: 'Someone Else' })));
+  test('...and nothing else at the same time', () =>
+    assertFails(updateDoc(doc(student(), 'orders/o1'), { customerName: 'Deleted user', total: 0 })));
+  test('...not on another student\'s order', () =>
+    assertFails(updateDoc(doc(student(), 'orders/o2'), { customerName: 'Deleted user' })));
+  test('a student removes their name from their own review', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'reviews/done1'),
+      { orderId: 'done1', customerId: 'student1', vendorId: 'v1', rating: 5, customerName: 'Ana' }));
+    await assertSucceeds(updateDoc(doc(student(), 'reviews/done1'), { customerName: 'Deleted user' }));
+    await assertFails(updateDoc(doc(student(), 'reviews/done1'), { rating: 1 }));
+  });
 });
 
 describe('orders: refunds', () => {

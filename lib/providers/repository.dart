@@ -878,6 +878,48 @@ class Repository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+  /// Account deletion (student): refuses while orders are still active;
+  /// otherwise replaces their name on past orders/reviews with
+  /// "Deleted user", deletes their favourites and profile. Returns a reason
+  /// it can't proceed, or null when done (the caller deletes the login).
+  Future<String?> anonymiseAndDeleteMyData() async {
+    final uid = _uid;
+    final orders = await _db
+        .collection(kColOrders)
+        .where('customerId', isEqualTo: uid)
+        .get();
+    final mine = orders.docs.map((d) => Order.fromMap(d.id, d.data())).toList();
+    if (mine.any((o) => o.isActive)) {
+      return 'You still have active orders. Pick them up or cancel them first.';
+    }
+    final reviews = await _db
+        .collection(kColReviews)
+        .where('customerId', isEqualTo: uid)
+        .get();
+    final favs = await _db
+        .collection(kColFavorites)
+        .where('customerId', isEqualTo: uid)
+        .get();
+    final writes = <void Function(WriteBatch)>[
+      for (final o in mine)
+        (b) => b.update(_db.collection(kColOrders).doc(o.id),
+            {'customerName': kDeletedUserName}),
+      for (final r in reviews.docs)
+        (b) => b.update(r.reference, {'customerName': kDeletedUserName}),
+      for (final f in favs.docs) (b) => b.delete(f.reference),
+    ];
+    const chunk = 400;
+    for (var i = 0; i < writes.length; i += chunk) {
+      final batch = _db.batch();
+      for (final w in writes.skip(i).take(chunk)) {
+        w(batch);
+      }
+      await batch.commit();
+    }
+    await _db.collection(kColUsers).doc(uid).delete();
+    return null;
+  }
+
   /// Saves the review and bumps the stall's rating aggregates in one batch.
   Future<void> submitReview({
     required Order order,

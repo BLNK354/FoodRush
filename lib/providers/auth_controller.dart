@@ -17,7 +17,17 @@ class AuthData {
   /// shown on the login screen.
   final String? notice;
 
-  const AuthData({this.profile, this.loading = false, this.notice});
+  /// The account's email has been confirmed via Firebase's link. Until it
+  /// is, the app shows the verify screen and the rules refuse orders, so
+  /// nobody can pose as an LPU student with an inbox they don't own.
+  final bool emailVerified;
+
+  const AuthData({
+    this.profile,
+    this.loading = false,
+    this.notice,
+    this.emailVerified = false,
+  });
 
   bool get isAuthenticated => profile != null;
   String? get role => profile?.role;
@@ -81,7 +91,11 @@ class AuthController extends Notifier<AuthData> {
         FirebaseAuth.instance.signOut();
         return;
       }
-      state = AuthData(profile: profile);
+      state = AuthData(
+        profile: profile,
+        emailVerified:
+            FirebaseAuth.instance.currentUser?.emailVerified ?? false,
+      );
     }
 
     Profile fallback() => Profile(
@@ -228,6 +242,12 @@ class AuthController extends Notifier<AuthData> {
       }
 
       await _awaitProfile();
+      // Prove they own the inbox (the LPU gate is meaningless otherwise).
+      try {
+        await cred.user!.sendEmailVerification();
+      } catch (_) {
+        // Rate-limited or offline: the verify screen offers "Resend".
+      }
       return null;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
@@ -280,6 +300,66 @@ class AuthController extends Notifier<AuthData> {
     });
     if (fullName.trim().isNotEmpty) {
       await user.updateDisplayName(fullName.trim());
+    }
+  }
+
+  /// Re-reads the account after the user clicked the link (in any tab or
+  /// device) and refreshes the ID token so the rules see email_verified.
+  /// Returns true once verified.
+  Future<bool> refreshEmailVerified() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    await user.reload();
+    final fresh = FirebaseAuth.instance.currentUser;
+    final verified = fresh?.emailVerified ?? false;
+    if (verified) await fresh!.getIdToken(true);
+    if (state.isAuthenticated && verified != state.emailVerified) {
+      state = AuthData(profile: state.profile, emailVerified: verified);
+    }
+    return verified;
+  }
+
+  /// Sends the verification email again. Returns an error message or null.
+  Future<String?> resendVerification() async {
+    try {
+      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.code == 'too-many-requests'
+          ? 'Too many emails sent. Wait a few minutes, then try again.'
+          : (e.message ?? 'Could not send the email.');
+    }
+  }
+
+  /// Students only: anonymises their name on past orders and reviews,
+  /// deletes favourites, profile and the login. Returns an error or null.
+  Future<String?> deleteMyAccount(String password) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) return 'Not signed in.';
+    if (state.role != kRoleCustomer) {
+      return 'Only student accounts can be deleted here. Ask an admin.';
+    }
+    try {
+      // Firebase requires a recent sign-in to delete; this also confirms
+      // it's really them.
+      await user.reauthenticateWithCredential(
+          EmailAuthProvider.credential(email: user.email!, password: password));
+    } on FirebaseAuthException catch (e) {
+      return switch (e.code) {
+        'wrong-password' || 'invalid-credential' => 'That password is wrong.',
+        'too-many-requests' => 'Too many attempts. Try again later.',
+        _ => e.message ?? 'Could not confirm your password.',
+      };
+    }
+    try {
+      final blocked = await Repository.instance.anonymiseAndDeleteMyData();
+      if (blocked != null) return blocked;
+      _stopProfile();
+      await user.delete();
+      state = const AuthData(notice: 'Your account has been deleted.');
+      return null;
+    } catch (e) {
+      return 'Could not delete the account: $e';
     }
   }
 

@@ -90,29 +90,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
 
-    if (err == '__CONFIRM_EMAIL__') {
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Check your email'),
-          content: const Text(
-              'We sent a confirmation link to your inbox. Click it, then sign in.'),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      if (mounted) context.go('/login');
-      return;
-    }
     if (err != null) {
       showSnack(context, err, error: true);
       return;
     }
-    // Signed in immediately (email confirmation disabled): router redirects.
+    // Signed in: the router shows "Verify your email" until the link is clicked.
   }
 
   @override
@@ -310,6 +292,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               title: const Text(
                 'I understand: pickup only (no deliveries), pay by GCash or cash, and I am a bona fide member of the LPU community.',
                 style: TextStyle(fontSize: 13),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => context.push('/privacy'),
+                child: const Text('How we use your data (privacy notice)'),
               ),
             ),
             const SizedBox(height: 8),
