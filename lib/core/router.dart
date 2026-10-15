@@ -66,6 +66,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       };
       if (loggedIn && loc.startsWith('/admin') && role != kRoleAdmin) return home;
       if (loggedIn && loc.startsWith('/vendor') && role != kRoleVendor) return home;
+      // Only students order (the rules refuse anyone else), so staff may
+      // browse the shop and stall pages but not the cart/checkout/orders.
+      final studentOnly = loc == '/cart' ||
+          loc == '/checkout' ||
+          loc == '/orders' ||
+          loc.startsWith('/orders/');
+      if (loggedIn && studentOnly && role != kRoleCustomer) return home;
       return null;
     },
     routes: [
