@@ -127,6 +127,30 @@ describe('email verification', () => {
     assertSucceeds(inOrderTxn(student(), 'student1', (b, f) => b.set(doc(f, 'orders/new'), order()))));
 });
 
+describe('student number', () => {
+  const fresh = (uid, email) => db(uid, { email, email_verified: true });
+  const profile = (email, extra = {}) => ({
+    email, role: 'customer', fullName: 'New Student', isActive: true,
+    createdAt: serverTimestamp(), ...extra,
+  });
+  test('a student signs up with a student number', () =>
+    assertSucceeds(setDoc(doc(fresh('n1', 'n1@lpunetwork.edu.ph'), 'users/n1'),
+      profile('n1@lpunetwork.edu.ph', { studentNumber: '2024-12345' }))));
+  test('...but not without one', () =>
+    assertFails(setDoc(doc(fresh('n2', 'n2@lpunetwork.edu.ph'), 'users/n2'),
+      profile('n2@lpunetwork.edu.ph'))));
+  test('...nor with letters in it', () =>
+    assertFails(setDoc(doc(fresh('n3', 'n3@lpunetwork.edu.ph'), 'users/n3'),
+      profile('n3@lpunetwork.edu.ph', { studentNumber: 'abc-123' }))));
+  test('a stall owner signs up without one', () =>
+    assertSucceeds(setDoc(doc(fresh('n4', 'n4@stall.com'), 'users/n4'),
+      profile('n4@stall.com', { role: 'vendor' }))));
+  test('a student cannot blank their student number later', () =>
+    assertFails(updateDoc(doc(student(), 'users/student1'), { studentNumber: null })));
+  test('...but can correct it', () =>
+    assertSucceeds(updateDoc(doc(student(), 'users/student1'), { studentNumber: '2023-00001' })));
+});
+
 describe('account deletion', () => {
   test('a student deletes their own profile', () => assertSucceeds(deleteDoc(doc(student(), 'users/student1'))));
   test('...but not someone else\'s', () => assertFails(deleteDoc(doc(student(), 'users/student2'))));

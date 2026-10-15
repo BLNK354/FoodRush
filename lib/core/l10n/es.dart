@@ -42,7 +42,6 @@ const Map<String, String> es = {
   'Stall owner': 'Dueño de puesto',
   'Staff': 'Personal',
   'Full name': 'Nombre completo',
-  'Student number (optional)': 'Número de estudiante (opcional)',
   'Mobile number (optional)': 'Número de móvil (opcional)',
   'Confirm': 'Confirmar',
   'Create account': 'Crear cuenta',
@@ -210,4 +209,20 @@ const Map<String, String> es = {
       'Notificaciones activadas. Mantén FoodRush abierto en una pestaña para recibirlas.',
   'Notifications are blocked. Allow them in your browser settings.':
       'Las notificaciones están bloqueadas. Permítelas en la configuración del navegador.',
+
+  // ---- student number / password
+  'Student number': 'Número de estudiante',
+  'Show password': 'Mostrar contraseña',
+  'Hide password': 'Ocultar contraseña',
+  'Weak': 'Débil',
+  'Fair': 'Aceptable',
+  'Good': 'Buena',
+  'Strong': 'Fuerte',
+  'Password strength: {level}': 'Seguridad de la contraseña: {level}',
+  'Use at least 8 characters': 'Usa al menos 8 caracteres',
+  'Avoid common or repeated passwords': 'Evita contraseñas comunes o repetidas',
+  'Use 12 or more characters': 'Usa 12 caracteres o más',
+  'Mix upper and lower case': 'Combina mayúsculas y minúsculas',
+  'Add a number': 'Añade un número',
+  'Add a symbol like ! or #': 'Añade un símbolo como ! o #',
 };

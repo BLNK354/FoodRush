@@ -40,7 +40,6 @@ const Map<String, String> ko = {
   'Stall owner': '매장 주인',
   'Staff': '직원',
   'Full name': '이름',
-  'Student number (optional)': '학번 (선택)',
   'Mobile number (optional)': '휴대폰 번호 (선택)',
   'Confirm': '확인',
   'Create account': '계정 만들기',
@@ -189,4 +188,20 @@ const Map<String, String> ko = {
   'Pick it up at {stall}.': '{stall}에서 받아 가세요.',
   'Notifications on. Keep FoodRush open in a tab to get them.': '알림이 켜졌어요. 알림을 받으려면 FoodRush 탭을 열어 두세요.',
   'Notifications are blocked. Allow them in your browser settings.': '알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요.',
+
+  // ---- student number / password
+  'Student number': '학번',
+  'Show password': '비밀번호 표시',
+  'Hide password': '비밀번호 숨기기',
+  'Weak': '약함',
+  'Fair': '보통',
+  'Good': '좋음',
+  'Strong': '강함',
+  'Password strength: {level}': '비밀번호 강도: {level}',
+  'Use at least 8 characters': '8자 이상 입력하세요',
+  'Avoid common or repeated passwords': '흔하거나 반복되는 비밀번호는 피하세요',
+  'Use 12 or more characters': '12자 이상 사용하세요',
+  'Mix upper and lower case': '대문자와 소문자를 섞어 쓰세요',
+  'Add a number': '숫자를 추가하세요',
+  'Add a symbol like ! or #': '! 또는 # 같은 기호를 추가하세요',
 };

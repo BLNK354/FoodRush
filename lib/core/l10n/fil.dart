@@ -42,7 +42,6 @@ const Map<String, String> fil = {
   'Stall owner': 'May-ari ng stall',
   'Staff': 'Staff',
   'Full name': 'Buong pangalan',
-  'Student number (optional)': 'Student number (opsyonal)',
   'Mobile number (optional)': 'Mobile number (opsyonal)',
   'Confirm': 'Ulitin',
   'Create account': 'Gumawa ng account',
@@ -212,4 +211,20 @@ const Map<String, String> fil = {
       'Naka-on ang notifications. Panatilihing bukas ang FoodRush sa isang tab.',
   'Notifications are blocked. Allow them in your browser settings.':
       'Naka-block ang notifications. Payagan ito sa browser settings.',
+
+  // ---- student number / password
+  'Student number': 'Student number',
+  'Show password': 'Ipakita ang password',
+  'Hide password': 'Itago ang password',
+  'Weak': 'Mahina',
+  'Fair': 'Puwede na',
+  'Good': 'Maayos',
+  'Strong': 'Matibay',
+  'Password strength: {level}': 'Tibay ng password: {level}',
+  'Use at least 8 characters': 'Gumamit ng hindi bababa sa 8 character',
+  'Avoid common or repeated passwords': 'Iwasan ang karaniwan o paulit-ulit na password',
+  'Use 12 or more characters': 'Gumamit ng 12 o higit pang character',
+  'Mix upper and lower case': 'Paghaluin ang malaki at maliit na titik',
+  'Add a number': 'Magdagdag ng numero',
+  'Add a symbol like ! or #': 'Magdagdag ng simbolo gaya ng ! o #',
 };
