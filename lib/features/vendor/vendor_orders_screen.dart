@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/order.dart';
+import '../../models/product.dart';
+import '../../models/user.dart';
 import '../../providers/repository.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
@@ -25,9 +27,10 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
   StreamSubscription<List<Order>>? _ordersSub;
   String _tab = 'active';
   String? _vendorId;
+  Vendor? _stall;
 
-  /// productId -> current menu price, for the per-order price check.
-  Map<String, double>? _menuPrices;
+  /// productId -> current menu item, for the per-order price check.
+  Map<String, Product>? _menu;
 
   /// Older completed orders fetched with "Load older" (beyond the live 300).
   List<Order> _older = [];
@@ -61,10 +64,11 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
       setState(() {
         _error = null;
         _vendorId = vendor.id;
+        _stall = vendor;
       });
       Repository.instance.listProducts(vendor.id).then((products) {
         if (!mounted) return;
-        setState(() => _menuPrices = {for (final p in products) p.id: p.price});
+        setState(() => _menu = {for (final p in products) p.id: p});
       }, onError: (Object _) {});
       // Live stream — orders update in real time, no polling.
       _ordersSub ??= Repository.instance
@@ -169,7 +173,8 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
         else
           ..._filtered.map((o) => _OrderCard(
                 order: o,
-                menuPrices: _menuPrices,
+                menu: _menu,
+                stall: _stall,
                 onAction: _handleAction,
               )),
         if ((_tab == 'done' || _tab == 'refunds') &&
@@ -245,8 +250,12 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
               .updateOrderStatus(order.id, kOrderReady);
           break;
         case 'complete':
-          await Repository.instance
-              .updateOrderStatus(order.id, kOrderCompleted);
+          final stamp = _stall?.hasLoyalty ?? false;
+          await Repository.instance.completeOrder(order, giveStamp: stamp);
+          if (mounted && stamp) {
+            showSnack(context, 'Picked up. +1 stamp for ${order.customerName ?? 'the student'}.');
+            return;
+          }
           break;
         case 'cancel':
           final reason = await _promptText(
@@ -370,18 +379,96 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen> {
   }
 }
 
+
+/// On a ready order: the student's stamps here, and "Hand over reward" once
+/// the card is full (spends the stamps; the stall gives the item).
+class _LoyaltyStrip extends StatefulWidget {
+  final Order order;
+  final Vendor stall;
+  const _LoyaltyStrip({required this.order, required this.stall});
+
+  @override
+  State<_LoyaltyStrip> createState() => _LoyaltyStripState();
+}
+
+class _LoyaltyStripState extends State<_LoyaltyStrip> {
+  int? _stamps;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final card = await Repository.instance.getLoyaltyCard(widget.stall.id,
+          customerId: widget.order.customerId);
+      if (mounted) setState(() => _stamps = card?.stamps ?? 0);
+    } catch (_) {}
+  }
+
+  Future<void> _redeem() async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Hand over ${widget.stall.loyaltyReward}?',
+      message: 'Uses ${widget.stall.loyaltyStamps} of the student\'s stamps.',
+      confirmLabel: 'Reward given',
+    );
+    if (!ok) return;
+    setState(() => _busy = true);
+    try {
+      await Repository.instance.redeemLoyalty(
+          widget.stall.id, widget.order.customerId, widget.stall.loyaltyStamps);
+      await _load();
+      if (mounted) showSnack(context, 'Reward recorded.');
+    } catch (e) {
+      if (mounted) showSnack(context, '$e'.replaceFirst('Exception: ', ''), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stamps = _stamps;
+    if (stamps == null) return const SizedBox.shrink();
+    final need = widget.stall.loyaltyStamps;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Icon(Icons.loyalty_outlined, size: 18, color: FrColors.secondary),
+          Text('$stamps/$need stamps',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (stamps >= need)
+            FilledButton.tonal(
+              onPressed: _busy ? null : _redeem,
+              child: Text('Hand over ${widget.stall.loyaltyReward}'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Order card
 // ---------------------------------------------------------------------------
 
 class _OrderCard extends ConsumerWidget {
   final Order order;
-  final Map<String, double>? menuPrices;
+  final Map<String, Product>? menu;
+  final Vendor? stall;
   final Future<void> Function(Order, String) onAction;
 
   const _OrderCard({
     required this.order,
-    required this.menuPrices,
+    required this.menu,
+    required this.stall,
     required this.onAction,
   });
 
@@ -458,7 +545,7 @@ class _OrderCard extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
-                    Expanded(child: Text('${it.qty} × ${it.name}')),
+                    Expanded(child: Text('${it.qty} × ${it.label}')),
                     Text(peso(it.lineTotal)),
                   ],
                 ),
@@ -506,6 +593,8 @@ class _OrderCard extends ConsumerWidget {
                   style: TextStyle(
                       color: FrColors.danger, fontSize: 12.5)),
             ],
+            if (order.status == kOrderReady && (stall?.hasLoyalty ?? false))
+              _LoyaltyStrip(order: order, stall: stall!),
             if (order.refundStatus != null) ...[
               const SizedBox(height: 8),
               order.refundOwed
@@ -566,7 +655,7 @@ class _OrderCard extends ConsumerWidget {
   /// Prices that don't match the menu mean the order didn't come from the
   /// app as-is (or the menu changed since): check before accepting.
   Widget _integrityWarning() {
-    final issues = order.integrityIssues(menuPrices);
+    final issues = order.integrityIssues(menu);
     if (issues.isEmpty) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.only(top: 10),

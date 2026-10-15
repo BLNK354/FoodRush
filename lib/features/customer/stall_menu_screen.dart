@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../models/misc.dart';
 import '../../models/product.dart';
@@ -30,14 +31,19 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
   String? _error;
   List<Review> _reviews = [];
   int? _ordersAhead;
+  int? _myStamps; // null = stall has no stamp card (or not loaded)
   String _query = '';
 
   /// Menu sections narrowed by the search box (empty sections dropped).
+  /// Only show products carrying ALL of these tags (e.g. halal + spicy).
+  final Set<String> _tagFilter = {};
+
   Map<String, List<Product>> get _visibleSections {
-    if (_query.isEmpty) return _byCategory;
+    if (_query.isEmpty && _tagFilter.isEmpty) return _byCategory;
     bool hit(Product p) =>
-        p.name.toLowerCase().contains(_query) ||
-        (p.description ?? '').toLowerCase().contains(_query);
+        _tagFilter.every(p.tags.contains) &&
+        (p.name.toLowerCase().contains(_query) ||
+            (p.description ?? '').toLowerCase().contains(_query));
     return {
       for (final e in _byCategory.entries)
         if (e.value.any(hit)) e.key: e.value.where(hit).toList(),
@@ -67,11 +73,18 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
       final ahead = await Repository.instance
           .ordersAhead(widget.vendorId)
           .then<int?>((n) => n, onError: (Object _) => null);
+      final stamps = vendor?.hasLoyalty == true &&
+              ref.read(authControllerProvider).role == kRoleCustomer
+          ? await Repository.instance
+              .getLoyaltyCard(widget.vendorId)
+              .then<int?>((c) => c?.stamps ?? 0, onError: (Object _) => null)
+          : null;
       if (!mounted) return;
       setState(() {
         _vendor = vendor;
         _reviews = reviews;
         _ordersAhead = ahead;
+        _myStamps = stamps;
         _products = products.where((p) => p.isAvailable).toList();
         _byCategory = {};
         for (final c in cats) {
@@ -105,16 +118,34 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
       return;
     }
     if (_vendor?.isOpenNow != true) {
-      showSnack(context, 'This stall is currently closed.', error: true);
+      showSnack(context, tr('This stall is currently closed.'), error: true);
       return;
     }
-    final err = ref.read(cartProvider.notifier).add(p);
+    final cart = ref.read(cartProvider.notifier);
+    var addons = const <Addon>[];
+    var qty = 1;
+    if (p.addons.isNotEmpty) {
+      final room = CartController.maxQtyFor(p) - cart.qtyOfProduct(p.id);
+      if (room <= 0) {
+        showSnack(context, 'You can order up to ${CartController.maxQtyFor(p)} of ${p.name}.',
+            error: true);
+        return;
+      }
+      final picked = await showModalBottomSheet<(List<Addon>, int)>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => _AddonPicker(product: p, maxQty: room),
+      );
+      if (picked == null || !mounted) return;
+      (addons, qty) = picked;
+    }
+    final err = cart.add(p, qty: qty, addons: addons);
     if (!mounted) return;
     if (err != null) {
       showSnack(context, err, error: true);
       return;
     }
-    showSnack(context, '${p.name} added to cart');
+    showSnack(context, tr('{name} added to cart', {'name': p.name}));
   }
 
   @override
@@ -130,7 +161,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
         icon: Icons.error_outline,
         title: 'Could not load this stall',
         message: _error,
-        action: FilledButton(onPressed: _load, child: const Text('Retry')),
+        action: FilledButton(onPressed: _load, child: Text(tr('Retry'))),
       );
     } else if (_vendor == null) {
       body = const EmptyState(
@@ -201,7 +232,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                                 ),
                                 const SizedBox(width: 10),
                                 StatusChip(
-                                  v.isOpenNow ? 'Open' : 'Closed',
+                                  v.isOpenNow ? tr('Open') : tr('Closed'),
                                   color: v.isOpenNow
                                       ? FrColors.success
                                       : FrColors.muted,
@@ -238,7 +269,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                                   Icon(Icons.place,
                                       size: 15, color: FrColors.muted),
                                   const SizedBox(width: 4),
-                                  Text('Pickup: ${v.pickupPoint}',
+                                  Text(tr('Pickup: {place}', {'place': v.pickupPoint}),
                                       style: TextStyle(
                                           color: FrColors.muted,
                                           fontSize: 13)),
@@ -251,12 +282,16 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                       IconButton(
                         onPressed: () => context.go('/shop'),
                         icon: const Icon(Icons.close),
-                        tooltip: 'Back to shop',
+                        tooltip: tr('Back to shop'),
                       ),
                     ],
                   ),
                 ),
               ),
+              if (_myStamps != null) ...[
+                const SizedBox(height: 12),
+                _StampCard(stall: v, stamps: _myStamps!),
+              ],
               const SizedBox(height: 24),
 
               if (!v.isOpenNow)
@@ -287,8 +322,8 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(Limits.search)
                   ],
-                  decoration: const InputDecoration(
-                    hintText: 'Search this menu…',
+                  decoration: InputDecoration(
+                    hintText: tr('Search this menu…'),
                     prefixIcon: Icon(Icons.search),
                   ),
                   onChanged: (v) =>
@@ -296,10 +331,32 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                 ),
                 const SizedBox(height: 20),
               ],
-              if (_query.isNotEmpty && _visibleSections.isEmpty)
+              if (_products.any((p) => p.tags.isNotEmpty)) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final t in kProductTags)
+                      if (_products.any((p) => p.tags.contains(t)))
+                        FilterChip(
+                          avatar: Icon(tagIcon(t), size: 16),
+                          label: Text(tagLabel(t)),
+                          selected: _tagFilter.contains(t),
+                          onSelected: (on) => setState(() =>
+                              on ? _tagFilter.add(t) : _tagFilter.remove(t)),
+                        ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              if ((_query.isNotEmpty || _tagFilter.isNotEmpty) &&
+                  _visibleSections.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Text('Nothing on this menu matches "$_query".',
+                  child: Text(
+                      _query.isEmpty
+                          ? 'Nothing on this menu has those tags.'
+                          : 'Nothing on this menu matches "$_query".',
                       style: TextStyle(color: FrColors.muted)),
                 ),
 
@@ -309,7 +366,7 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                 if (entry.value.isEmpty)
                   Padding(
                     padding: EdgeInsets.only(bottom: 16),
-                    child: Text('Nothing here yet.',
+                    child: Text(tr('Nothing here yet.'),
                         style: TextStyle(color: FrColors.muted)),
                   )
                 else
@@ -325,7 +382,9 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
                         crossAxisCount: cols,
                         mainAxisSpacing: 14,
                         crossAxisSpacing: 14,
-                        childAspectRatio: cols == 1 ? 3.2 : 2.6,
+                        // Fixed height: an aspect ratio left narrow tiles too
+                        // short for name + 2-line description + stock + button.
+                        mainAxisExtent: 172,
                       ),
                       itemCount: entry.value.length,
                       itemBuilder: (context, i) =>
@@ -343,6 +402,62 @@ class _StallMenuScreenState extends ConsumerState<StallMenuScreen> {
               const SizedBox(height: 64),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The student's stamp card at this stall.
+class _StampCard extends StatelessWidget {
+  final Vendor stall;
+  final int stamps;
+  const _StampCard({required this.stall, required this.stamps});
+
+  @override
+  Widget build(BuildContext context) {
+    final need = stall.loyaltyStamps;
+    final full = stamps >= need;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.loyalty_outlined, color: FrColors.secondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    full
+                        ? tr('Card full! Ask for {reward} at pickup.',
+                            {'reward': stall.loyaltyReward})
+                        : tr('{have}/{need} stamps · {left} more for {reward}', {
+                            'have': stamps,
+                            'need': need,
+                            'left': need - stamps,
+                            'reward': stall.loyaltyReward,
+                          }),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (var i = 0; i < need; i++)
+                  Icon(
+                    i < stamps ? Icons.circle : Icons.circle_outlined,
+                    size: 16,
+                    color: i < stamps ? FrColors.secondary : FrColors.muted,
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -377,12 +492,12 @@ class _ReviewsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader('Reviews'),
+        SectionHeader(tr('Reviews')),
         if (reviews.isEmpty)
           Padding(
             padding: EdgeInsets.only(bottom: 16),
             child: Text(
-                'No reviews yet. Students can rate a stall after picking up.',
+                tr('No reviews yet. Students can rate a stall after picking up.'),
                 style: TextStyle(color: FrColors.muted)),
           )
         else
@@ -455,6 +570,87 @@ class _ReviewsSection extends StatelessWidget {
   }
 }
 
+
+/// Bottom sheet to choose add-ons and quantity; pops with (addons, qty).
+class _AddonPicker extends StatefulWidget {
+  final Product product;
+  final int maxQty;
+  const _AddonPicker({required this.product, required this.maxQty});
+
+  @override
+  State<_AddonPicker> createState() => _AddonPickerState();
+}
+
+class _AddonPickerState extends State<_AddonPicker> {
+  final _chosen = <Addon>{};
+  int _qty = 1;
+
+  double get _unit =>
+      widget.product.price + _chosen.fold(0.0, (s, a) => s + a.price);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.product;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(p.name,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            Text('${peso(p.price)} · pick any extras',
+                style: TextStyle(color: FrColors.muted)),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final a in p.addons)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _chosen.contains(a),
+                      onChanged: (on) => setState(
+                          () => on == true ? _chosen.add(a) : _chosen.remove(a)),
+                      title: Text(a.name),
+                      secondary: Text(a.price == 0 ? 'Free' : '+${peso(a.price)}',
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'One less',
+                  onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+                Text('$_qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                IconButton(
+                  tooltip: 'One more',
+                  onPressed: _qty < widget.maxQty ? () => setState(() => _qty++) : null,
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(
+                        context, ([for (final a in p.addons) if (_chosen.contains(a)) a], _qty)),
+                    child: Text('Add · ${peso(_unit * _qty)}'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProductCard extends StatelessWidget {
   final Product product;
   final bool stallOpen;
@@ -482,9 +678,30 @@ class _ProductCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(product.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 15)),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(product.name,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800, fontSize: 15)),
+                            ),
+                            for (final t in product.tags)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Tooltip(
+                                  message: tagLabel(t),
+                                  child: Icon(tagIcon(t),
+                                      size: 15,
+                                      color: t == 'spicy'
+                                          ? FrColors.danger
+                                          : t == 'bestseller'
+                                              ? FrColors.warning
+                                              : FrColors.success),
+                                ),
+                              ),
+                          ],
+                        ),
                         if (product.description != null) ...[
                           const SizedBox(height: 3),
                           Text(
@@ -500,8 +717,8 @@ class _ProductCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               product.stockQty! <= 5
-                                  ? 'Only ${product.stockQty} left!'
-                                  : '${product.stockQty} in stock',
+                                  ? tr('Only {n} left!', {'n': product.stockQty})
+                                  : tr('{n} in stock', {'n': product.stockQty}),
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: product.stockQty! <= 5
@@ -538,6 +755,12 @@ class _ProductCard extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                         fontSize: 16,
                         color: FrColors.primary)),
+                if (product.addons.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Text(tr('+ extras'),
+                        style: TextStyle(color: FrColors.muted, fontSize: 11.5)),
+                  ),
                 const Spacer(),
                 FilledButton.tonal(
                   onPressed: stallOpen ? onAdd : null,
@@ -547,7 +770,7 @@ class _ProductCard extends StatelessWidget {
                     minimumSize: const Size(0, 38),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
-                  child: const Text('Add',
+                  child: Text(tr('Add'),
                       style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ],

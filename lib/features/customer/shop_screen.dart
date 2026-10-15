@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
 import '../../shared/validation.dart';
+import '../../shared/install_app_card.dart';
 import '../../shared/widgets.dart';
 
 class ShopScreen extends ConsumerStatefulWidget {
@@ -80,13 +82,14 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   @override
   Widget build(BuildContext context) {
     return FrPage(
-      title: 'Shop',
-      subtitle: 'Stalls on campus — order ahead, pick up when it\'s ready.',
+      title: tr('Shop'),
+      subtitle: tr('Stalls on campus — order ahead, pick up when it\'s ready.'),
       children: [
+        const InstallAppCard(),
         TextField(
           inputFormatters: [LengthLimitingTextInputFormatter(Limits.search)],
-          decoration: const InputDecoration(
-            hintText: 'Search stalls or food…',
+          decoration: InputDecoration(
+            hintText: tr('Search stalls or food…'),
             prefixIcon: Icon(Icons.search),
           ),
           onChanged: (v) {
@@ -109,16 +112,16 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
             if (snap.hasError) {
               return EmptyState(
                 icon: Icons.error_outline,
-                title: 'Could not load stalls',
+                title: tr('Could not load stalls'),
                 message: '${snap.error}',
-                action: FilledButton(onPressed: _reload, child: const Text('Retry')),
+                action: FilledButton(onPressed: _reload, child: Text(tr('Retry'))),
               );
             }
             if (_filtered.isEmpty) {
               return EmptyState(
                 icon: Icons.storefront_outlined,
                 title: _query.isEmpty ? 'No stalls yet' : 'No stalls match "$_query"',
-                message: 'Check back soon — new stalls are added as they are verified.',
+                message: tr('Check back soon — new stalls are added as they are verified.'),
               );
             }
             return LayoutBuilder(builder: (context, c) {
@@ -211,7 +214,7 @@ class _StallCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(FrRadius.sm),
                           ),
                           child: Text(
-                            closed ? 'Closed' : 'Open',
+                            closed ? tr('Closed') : tr('Open'),
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../shared/widgets.dart';
@@ -56,7 +57,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       final ok =
           await ref.read(authControllerProvider.notifier).refreshEmailVerified();
       if (!ok && !quiet && mounted) {
-        showSnack(context, 'Not verified yet. Click the link in the email first.',
+        showSnack(context, tr('Not verified yet. Click the link in the email first.'),
             error: true);
       }
     } catch (_) {
@@ -94,37 +95,37 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                     const Icon(Icons.mark_email_unread_outlined,
                         size: 56, color: FrColors.primary),
                     const SizedBox(height: 16),
-                    const Text('Verify your email',
+                    Text(tr('Verify your email'),
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     Text(
-                      'We sent a link to $email. Open it to confirm this is '
-                      'your inbox, then come back here.',
+                      tr('We sent a link to {email}. Open it to confirm this is '
+                          'your inbox, then come back here.', {'email': email}),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: FrColors.muted),
                     ),
                     const SizedBox(height: 6),
-                    Text('This page continues by itself once you click the link.',
+                    Text(tr('This page continues by itself once you click the link.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: FrColors.muted, fontSize: 12.5)),
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: () => _check(),
-                      child: const Text("I've verified — continue"),
+                      child: Text(tr("I've verified — continue")),
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton(
                       onPressed: _wait > 0 ? null : _resend,
                       child: Text(_wait > 0
-                          ? 'Resend email (${_wait}s)'
-                          : 'Resend email'),
+                          ? tr('Resend email ({s}s)', {'s': _wait})
+                          : tr('Resend email')),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () =>
                           ref.read(authControllerProvider.notifier).signOut(),
-                      child: const Text('Use a different account'),
+                      child: Text(tr('Use a different account')),
                     ),
                   ],
                 ),

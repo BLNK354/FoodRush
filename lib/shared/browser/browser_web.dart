@@ -1,4 +1,5 @@
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:web/web.dart' as web;
 
@@ -109,6 +110,51 @@ String? readPref(String key) {
     return web.window.localStorage.getItem('foodrush.$key');
   } catch (_) {
     return null;
+  }
+}
+
+// ---- Install as an app (PWA). index.html keeps the browser's
+// beforeinstallprompt event in window.__frInstallPrompt. ----
+
+/// The browser offered to install FoodRush (Chrome/Edge/Android).
+bool get canPromptInstall {
+  try {
+    return globalContext.getProperty<JSAny?>('__frInstallPrompt'.toJS) != null;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Shows the browser's install prompt; true if the user accepted.
+Future<bool> promptInstall() async {
+  try {
+    final e = globalContext.getProperty<JSObject?>('__frInstallPrompt'.toJS);
+    if (e == null) return false;
+    e.callMethod<JSAny?>('prompt'.toJS);
+    final choice =
+        await e.getProperty<JSPromise<JSObject>>('userChoice'.toJS).toDart;
+    globalContext.setProperty('__frInstallPrompt'.toJS, null);
+    return choice.getProperty<JSString>('outcome'.toJS).toDart == 'accepted';
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Already running as an installed app (home-screen icon, own window).
+bool get isInstalledApp {
+  try {
+    return web.window.matchMedia('(display-mode: standalone)').matches;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// iPhone/iPad: no install prompt; users add it via Share → Add to Home Screen.
+bool get isIos {
+  try {
+    return RegExp(r'iPhone|iPad|iPod').hasMatch(web.window.navigator.userAgent);
+  } catch (_) {
+    return false;
   }
 }
 

@@ -217,7 +217,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Row(
                         children: [
-                          Expanded(child: Text('${it.qty} × ${it.name}')),
+                          Expanded(child: Text('${it.qty} × ${it.label}')),
                           Text(peso(it.lineTotal)),
                         ],
                       ),

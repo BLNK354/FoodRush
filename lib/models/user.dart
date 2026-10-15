@@ -124,6 +124,16 @@ class Vendor {
   final int ratingSum;
   final int ratingCount;
 
+  /// Loyalty stamp card: one stamp per picked-up order; [loyaltyStamps]
+  /// stamps earn [loyaltyReward] (e.g. "a free Iced Tea").
+  final bool loyaltyEnabled;
+  final int loyaltyStamps;
+  final String? loyaltyReward;
+
+  /// Emails (lowercase) of staff accounts allowed to run this stall's
+  /// orders and menu availability. Managed by the owner in Settings.
+  final List<String> staffEmails;
+
   const Vendor({
     required this.id,
     required this.ownerId,
@@ -140,9 +150,16 @@ class Vendor {
     this.prepMinutes = kDefaultPrepMinutes,
     this.ratingSum = 0,
     this.ratingCount = 0,
+    this.loyaltyEnabled = false,
+    this.loyaltyStamps = 10,
+    this.loyaltyReward,
+    this.staffEmails = const [],
   });
 
   static const kDefaultPrepMinutes = 10;
+
+  bool get hasLoyalty =>
+      loyaltyEnabled && (loyaltyReward?.trim().isNotEmpty ?? false);
 
   double? get rating => ratingCount == 0 ? null : ratingSum / ratingCount;
 
@@ -197,6 +214,37 @@ class Vendor {
             (m['prepMinutes'] as num?)?.toInt() ?? kDefaultPrepMinutes,
         ratingSum: (m['ratingSum'] as num?)?.toInt() ?? 0,
         ratingCount: (m['ratingCount'] as num?)?.toInt() ?? 0,
+        loyaltyEnabled: m['loyaltyEnabled'] == true,
+        loyaltyStamps: (m['loyaltyStamps'] as num?)?.toInt() ?? 10,
+        loyaltyReward: m['loyaltyReward'] as String?,
+        staffEmails: [
+          for (final e in (m['staffEmails'] as List? ?? const []))
+            if (e is String) e,
+        ],
+      );
+}
+
+/// A student's stamp card at one stall (Firestore: loyalty/{vendorId}_{uid}).
+/// Only the stall writes it: +1 on each picked-up order, minus the card
+/// size when the reward is handed over.
+class LoyaltyCard {
+  final String vendorId;
+  final String customerId;
+  final int stamps;
+  final int redeemed;
+
+  const LoyaltyCard({
+    required this.vendorId,
+    required this.customerId,
+    this.stamps = 0,
+    this.redeemed = 0,
+  });
+
+  factory LoyaltyCard.fromMap(Map<String, dynamic> m) => LoyaltyCard(
+        vendorId: (m['vendorId'] ?? '') as String,
+        customerId: (m['customerId'] ?? '') as String,
+        stamps: (m['stamps'] as num?)?.toInt() ?? 0,
+        redeemed: (m['redeemed'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -223,6 +271,10 @@ class VendorWithOwner extends Vendor {
     super.prepMinutes,
     super.ratingSum,
     super.ratingCount,
+    super.loyaltyEnabled,
+    super.loyaltyStamps,
+    super.loyaltyReward,
+    super.staffEmails,
   });
 
   factory VendorWithOwner.fromMaps(
@@ -249,6 +301,10 @@ class VendorWithOwner extends Vendor {
       prepMinutes: v.prepMinutes,
       ratingSum: v.ratingSum,
       ratingCount: v.ratingCount,
+      loyaltyEnabled: v.loyaltyEnabled,
+      loyaltyStamps: v.loyaltyStamps,
+      loyaltyReward: v.loyaltyReward,
+      staffEmails: v.staffEmails,
     );
   }
 }

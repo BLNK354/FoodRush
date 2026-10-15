@@ -41,6 +41,13 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
   bool _useSchedule = false;
   final _prep = TextEditingController();
 
+  // Loyalty stamp card + staff list (saved with the rest of Settings).
+  bool _loyaltyOn = false;
+  int _loyaltyStamps = 10;
+  final _loyaltyReward = TextEditingController();
+  List<String> _staff = [];
+  final _staffEmail = TextEditingController();
+
   /// Mon-Fri 7:00 AM-5:00 PM, the starting point when hours are switched on.
   static final _defaultHours = {
     for (var d = 1; d <= 5; d++) d: const DayHours(7 * 60, 17 * 60),
@@ -60,6 +67,8 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
     _gcashName.dispose();
     _pickupPoint.dispose();
     _prep.dispose();
+    _loyaltyReward.dispose();
+    _staffEmail.dispose();
     super.dispose();
   }
 
@@ -82,6 +91,10 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         _hours = Map.of(vendor.hours);
         _useSchedule = vendor.hasSchedule;
         _prep.text = '${vendor.prepMinutes}';
+        _loyaltyOn = vendor.loyaltyEnabled;
+        _loyaltyStamps = vendor.loyaltyStamps.clamp(3, 20);
+        _loyaltyReward.text = vendor.loyaltyReward ?? '';
+        _staff = [...vendor.staffEmails];
         _newLogo = null;
         _newLogoName = null;
         _removeLogo = false;
@@ -96,6 +109,9 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
 
   Future<void> _save() async {
     final err = firstError([
+      if (_loyaltyOn)
+        validateText(_loyaltyReward.text,
+            max: Limits.reward, required: true, label: 'Loyalty reward'),
       validateText(_name.text,
           max: Limits.name, required: true, min: 2, label: 'Stall name'),
       validateText(_description.text, max: Limits.description, label: 'Description'),
@@ -145,6 +161,10 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         removeLogo: _removeLogo,
         hours: _useSchedule ? _hours : const {},
         prepMinutes: prep,
+        loyaltyEnabled: _loyaltyOn,
+        loyaltyStamps: _loyaltyStamps,
+        loyaltyReward: _loyaltyReward.text.trim(),
+        staffEmails: _staff,
       );
       if (!mounted) return;
       showSnack(context, 'Settings saved.');
@@ -174,6 +194,121 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
       return;
     }
     setState(() => _hours[day] = next);
+  }
+
+  Widget _loyaltyCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeader('Loyalty stamp card'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Give stamps'),
+              subtitle: const Text(
+                  'Each picked-up order earns the student one stamp. A full card '
+                  'earns the reward, which you hand over at pickup.'),
+              value: _loyaltyOn,
+              onChanged: (v) => setState(() => _loyaltyOn = v),
+            ),
+            if (_loyaltyOn) ...[
+              Row(
+                children: [
+                  const Text('Stamps for a reward:'),
+                  const SizedBox(width: 12),
+                  DropdownButton<int>(
+                    value: _loyaltyStamps,
+                    items: [
+                      for (var n = 3; n <= 20; n++)
+                        DropdownMenuItem(value: n, child: Text('$n')),
+                    ],
+                    onChanged: (v) => setState(() => _loyaltyStamps = v ?? 10),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FrTextField(
+                controller: _loyaltyReward,
+                label: 'Reward',
+                hint: 'e.g. a free Iced Tea',
+                maxLength: Limits.reward,
+                validator: (v) => validateText(v,
+                    max: Limits.reward, required: true, label: 'Reward'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _staffCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeader('Staff'),
+            Text(
+              'Staff sign up as "Stall staff" with the email you add here and '
+              'verify it. They can run orders and mark items sold out, but not '
+              'change prices, promos or settings.',
+              style: TextStyle(color: FrColors.muted, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            for (final e in _staff)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.badge_outlined),
+                title: Text(e),
+                trailing: IconButton(
+                  tooltip: 'Remove staff',
+                  icon: Icon(Icons.person_remove_outlined, color: FrColors.danger),
+                  onPressed: () => setState(() => _staff.remove(e)),
+                ),
+              ),
+            if (_staff.length < 10)
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _staffEmail,
+                      keyboardType: TextInputType.emailAddress,
+                      maxLength: Limits.email,
+                      decoration: const InputDecoration(
+                          hintText: 'staff email', counterText: ''),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Add staff',
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                    onPressed: () {
+                      final email = _staffEmail.text.trim().toLowerCase();
+                      final err = validateEmail(email) ??
+                          (_staff.contains(email) ? 'Already added' : null);
+                      if (err != null) {
+                        showSnack(context, err, error: true);
+                        return;
+                      }
+                      setState(() {
+                        _staff.add(email);
+                        _staffEmail.clear();
+                      });
+                    },
+                  ),
+                ],
+              ),
+            const SizedBox(height: 4),
+            Text('Save settings to apply staff changes.',
+                style: TextStyle(color: FrColors.muted, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _hoursCard() {
@@ -423,6 +558,10 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         ),
         const SizedBox(height: 20),
         _hoursCard(),
+        const SizedBox(height: 20),
+        _loyaltyCard(),
+        const SizedBox(height: 20),
+        _staffCard(),
         const SizedBox(height: 20),
         Card(
           child: SwitchListTile(

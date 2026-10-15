@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/constants.dart';
 import 'core/firebase_options.dart';
+import 'core/i18n.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'providers/auth_controller.dart';
@@ -177,8 +178,10 @@ class _FoodRushAppState extends ConsumerState<FoodRushApp>
   @override
   Widget build(BuildContext context) {
     final dark = _resolveDark(ref.watch(themeModeProvider));
-    if (dark != FrColors.dark) {
+    final fil = ref.watch(filipinoProvider);
+    if (dark != FrColors.dark || fil != Lang.fil) {
       FrColors.dark = dark;
+      Lang.fil = fil;
       _rebuildEverything();
     }
     final theme = _themes.putIfAbsent(dark, buildFrTheme);

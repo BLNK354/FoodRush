@@ -10,6 +10,7 @@ import '../../models/misc.dart';
 import '../../models/order.dart';
 import '../../models/product.dart';
 import '../../models/user.dart';
+import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
 import '../../shared/order_alerts.dart';
 import '../../shared/validation.dart';
@@ -45,23 +46,30 @@ class _ReplyDialogState extends State<_ReplyDialog> {
           maxLines: 3,
           maxLength: Limits.reply,
           decoration: const InputDecoration(
-              hintText: 'Shown publicly under the review'),
+            hintText: 'Shown publicly under the review',
+          ),
         ),
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-            onPressed: () {
-              final err = validateText(_text.text, max: Limits.reply, label: 'Reply');
-              if (err != null) {
-                showSnack(context, err, error: true);
-                return;
-              }
-              Navigator.pop(context, _text.text);
-            },
-            child: const Text('Post reply')),
+          onPressed: () {
+            final err = validateText(
+              _text.text,
+              max: Limits.reply,
+              label: 'Reply',
+            );
+            if (err != null) {
+              showSnack(context, err, error: true);
+              return;
+            }
+            Navigator.pop(context, _text.text);
+          },
+          child: const Text('Post reply'),
+        ),
       ],
     );
   }
@@ -105,7 +113,10 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
         if (!mounted) return;
         setState(() {
           _loading = false;
-          _error = 'No stall found for your account.';
+          _error = ref.read(authControllerProvider).role == kRoleStaff
+              ? 'You aren\'t linked to a stall yet. Ask the stall owner to add '
+                    'your email under Settings → Staff, then refresh.'
+              : 'No stall found for your account.';
         });
         return;
       }
@@ -121,22 +132,25 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
       setState(() {
         _vendor = vendor;
         _stats = stats;
-        _lowStock = products
-            .where((p) =>
-                p.isAvailable &&
-                p.stockQty != null &&
-                p.stockQty! <= kLowStockThreshold)
-            .toList()
-          ..sort((a, b) => a.stockQty!.compareTo(b.stockQty!));
+        _lowStock =
+            products
+                .where(
+                  (p) =>
+                      p.isAvailable &&
+                      p.stockQty != null &&
+                      p.stockQty! <= kLowStockThreshold,
+                )
+                .toList()
+              ..sort((a, b) => a.stockQty!.compareTo(b.stockQty!));
         _reviews = reviews;
         _loading = false;
         _error = null;
       });
 
       // Live orders stream keeps the active list real-time.
-      _ordersSub ??= Repository.instance
-          .streamVendorOrders(vendor.id)
-          .listen((orders) {
+      _ordersSub ??= Repository.instance.streamVendorOrders(vendor.id).listen((
+        orders,
+      ) {
         if (!mounted) return;
         setState(() {
           _activeOrders = orders.where((o) => o.isActive).toList();
@@ -193,32 +207,39 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
     }
 
     final v = _vendor!;
+    final isOwner = ref.watch(authControllerProvider).role == kRoleVendor;
     return FrPage(
       title: 'Dashboard',
       subtitle: v.name,
       actions: [
-        _toggling
-            ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                    width: 22, height: 22, child: CircularProgressIndicator()),
-              )
-            : Row(
-                children: [
-                  Text(
-                    v.isOpen ? 'OPEN' : 'CLOSED',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: v.isOpen ? FrColors.success : FrColors.muted,
+        if (!isOwner)
+          StatusChip(
+            v.isOpen ? 'OPEN' : 'CLOSED',
+            color: v.isOpen ? FrColors.success : FrColors.muted,
+          )
+        else
+          _toggling
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              : Row(
+                  children: [
+                    Text(
+                      v.isOpen ? 'OPEN' : 'CLOSED',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: v.isOpen ? FrColors.success : FrColors.muted,
+                      ),
                     ),
-                  ),
-                  Switch(
-                    value: v.isOpen,
-                    onChanged: _toggleOpen,
-                  ),
-                ],
-              ),
+                    Switch(value: v.isOpen, onChanged: _toggleOpen),
+                  ],
+                ),
       ],
       children: [
         if (!v.isVerified)
@@ -246,41 +267,48 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
         _statusCard(v),
         const SizedBox(height: 16),
 
-        LayoutBuilder(builder: (context, c) {
-          final twoCol = c.maxWidth > 720;
-          final cards = [
-            ('Orders today', '${_stats?['ordersToday'] ?? 0}',
-                Icons.receipt_long, FrColors.primary),
-            ('Active now', '${_stats?['active'] ?? 0}',
-                Icons.local_fire_department, FrColors.secondary),
-            ('Revenue today', peso(_stats?['revenueToday'] ?? 0),
-                Icons.payments, FrColors.success),
-          ];
-          return Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _stat(cards[0]),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _stat(cards[1]),
-                  ),
-                  if (twoCol) ...[
-                    const SizedBox(width: 12),
-                    Expanded(child: _stat(cards[2])),
-                  ],
-                ],
+        LayoutBuilder(
+          builder: (context, c) {
+            final twoCol = c.maxWidth > 720;
+            final cards = [
+              (
+                'Orders today',
+                '${_stats?['ordersToday'] ?? 0}',
+                Icons.receipt_long,
+                FrColors.primary,
               ),
-              if (!twoCol) ...[
-                const SizedBox(height: 12),
-                _stat(cards[2]),
+              (
+                'Active now',
+                '${_stats?['active'] ?? 0}',
+                Icons.local_fire_department,
+                FrColors.secondary,
+              ),
+              (
+                'Revenue today',
+                peso(_stats?['revenueToday'] ?? 0),
+                Icons.payments,
+                FrColors.success,
+              ),
+            ];
+            return Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _stat(cards[0])),
+                    const SizedBox(width: 12),
+                    Expanded(child: _stat(cards[1])),
+                    if (twoCol) ...[
+                      const SizedBox(width: 12),
+                      Expanded(child: _stat(cards[2])),
+                    ],
+                  ],
+                ),
+                if (!twoCol) ...[const SizedBox(height: 12), _stat(cards[2])],
               ],
-            ],
-          );
-        }),
+            );
+          },
+        ),
 
         const SizedBox(height: 12),
         SectionHeader('Active orders'),
@@ -291,7 +319,9 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
             message: 'No active orders right now.',
           )
         else
-          ..._activeOrders.take(5).map(
+          ..._activeOrders
+              .take(5)
+              .map(
                 (o) => Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
@@ -301,9 +331,12 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     subtitle: Text(
-                        '${o.orderNumber} · ${kOrderStatusLabels[o.status] ?? o.status}'),
-                    trailing: Text(peso(o.total),
-                        style: const TextStyle(fontWeight: FontWeight.w900)),
+                      '${o.orderNumber} · ${kOrderStatusLabels[o.status] ?? o.status}',
+                    ),
+                    trailing: Text(
+                      peso(o.total),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
                   ),
                 ),
               ),
@@ -322,14 +355,20 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
                 for (final p in _lowStock)
                   ListTile(
                     dense: true,
-                    leading: Icon(Icons.inventory_2_outlined,
-                        color: FrColors.danger),
-                    title: Text(p.name,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    leading: Icon(
+                      Icons.inventory_2_outlined,
+                      color: FrColors.danger,
+                    ),
+                    title: Text(
+                      p.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     trailing: Text(
                       p.stockQty == 0 ? 'Sold out' : '${p.stockQty} left',
                       style: TextStyle(
-                          color: FrColors.danger, fontWeight: FontWeight.w800),
+                        color: FrColors.danger,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
               ],
@@ -339,8 +378,10 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
         const SizedBox(height: 12),
         const SectionHeader('Recent reviews'),
         if (_reviews.isEmpty)
-          Text('No reviews yet. Students can rate you after pickup.',
-              style: TextStyle(color: FrColors.muted))
+          Text(
+            'No reviews yet. Students can rate you after pickup.',
+            style: TextStyle(color: FrColors.muted),
+          )
         else
           for (final r in _reviews) _reviewTile(r),
         const SizedBox(height: 40),
@@ -376,17 +417,20 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                TextButton(
-                  onPressed: () => _reply(r),
-                  child: Text(r.reply == null ? 'Reply' : 'Edit reply'),
-                ),
+                if (ref.watch(authControllerProvider).role == kRoleVendor)
+                  TextButton(
+                    onPressed: () => _reply(r),
+                    child: Text(r.reply == null ? 'Reply' : 'Edit reply'),
+                  ),
               ],
             ),
             if (r.comment != null) Text(r.comment!),
             if (r.reply != null) ...[
               const SizedBox(height: 6),
-              Text('Your reply: ${r.reply}',
-                  style: TextStyle(color: FrColors.muted, fontSize: 13)),
+              Text(
+                'Your reply: ${r.reply}',
+                style: TextStyle(color: FrColors.muted, fontSize: 13),
+              ),
             ],
           ],
         ),
@@ -402,11 +446,16 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
     if (text == null) return;
     try {
       await Repository.instance.replyToReview(r.id, text);
-      final reviews =
-          await Repository.instance.listVendorReviews(_vendor!.id, limit: 5);
+      final reviews = await Repository.instance.listVendorReviews(
+        _vendor!.id,
+        limit: 5,
+      );
       if (!mounted) return;
       setState(() => _reviews = reviews);
-      showSnack(context, text.trim().isEmpty ? 'Reply removed.' : 'Reply posted.');
+      showSnack(
+        context,
+        text.trim().isEmpty ? 'Reply removed.' : 'Reply posted.',
+      );
     } catch (e) {
       if (mounted) showSnack(context, 'Could not save reply: $e', error: true);
     }
@@ -421,7 +470,8 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
     if (openNow) {
       headline = 'Students can order now${hours == null ? '' : ' · $hours'}';
     } else if (v.isOpen) {
-      headline = 'Outside your opening hours'
+      headline =
+          'Outside your opening hours'
           '${hours == null ? '' : ' · $hours'}';
     } else {
       headline = 'Closed: switch on to take orders';
@@ -437,17 +487,26 @@ class _VendorDashboardState extends ConsumerState<VendorDashboard> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(openNow ? Icons.storefront : Icons.schedule,
-                    color: openNow ? FrColors.success : FrColors.muted),
+                Icon(
+                  openNow ? Icons.storefront : Icons.schedule,
+                  color: openNow ? FrColors.success : FrColors.muted,
+                ),
                 const SizedBox(width: 8),
                 Flexible(
-                  child: Text(headline,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(
+                    headline,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ],
             ),
             RatingBadge(rating: v.rating, count: v.ratingCount, size: 14),
             const EnableAlertsButton(label: 'Alert me about new orders'),
+            OutlinedButton.icon(
+              onPressed: () => context.go('/display'),
+              icon: const Icon(Icons.tv),
+              label: const Text('"Now serving" screen'),
+            ),
           ],
         ),
       ),

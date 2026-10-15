@@ -36,6 +36,14 @@ service cloud.firestore {
     function ownsStall(vendorId) {
       return isVendor() && get(/databases/$(database)/documents/vendors/$(vendorId)).data.ownerId == me();
     }
+    // Staff: a 'staff' account whose VERIFIED email the stall owner listed in
+    // staffEmails. They run orders and menu availability, nothing else.
+    function isStaffOf(vendorId) {
+      return signedIn() && myRole() == 'staff' && verified()
+        && request.auth.token.email.lower()
+             in get(/databases/$(database)/documents/vendors/$(vendorId)).data.get('staffEmails', []);
+    }
+    function worksAt(vendorId) { return ownsStall(vendorId) || isStaffOf(vendorId); }
 
     // Bootstrap: the FIRST account may claim admin. The window closes the
     // moment settings/app_bootstrapped is written (by that same account).
@@ -76,7 +84,7 @@ service cloud.firestore {
         && validProfile(request.resource.data)
         && request.resource.data.email.lower() == request.auth.token.email.lower()
         && request.resource.data.isActive == true
-        && request.resource.data.role in ['customer', 'vendor', 'admin']
+        && request.resource.data.role in ['customer', 'vendor', 'staff', 'admin']
         && (request.resource.data.role != 'admin' || bootstrapOpen())
         && (request.resource.data.role != 'customer'
             || request.resource.data.email.matches('.*@lpunetwork\\.edu\\.ph'));
@@ -111,7 +119,11 @@ service cloud.firestore {
           && optStr(d.get('logoUrl', null), 300000)
           && d.get('isOpen', false) is bool
           && num(d.get('prepMinutes', 10), 1, 120)
-          && d.get('hours', {}) is map && d.get('hours', {}).size() <= 7;
+          && d.get('hours', {}) is map && d.get('hours', {}).size() <= 7
+          && d.get('loyaltyEnabled', false) is bool
+          && num(d.get('loyaltyStamps', 10), 3, 20)
+          && optStr(d.get('loyaltyReward', null), 60)
+          && d.get('staffEmails', []) is list && d.get('staffEmails', []).size() <= 10;
       }
       allow read: if signedIn();
       // Owner creates their own stall doc (during vendor signup), unverified.
@@ -150,7 +162,9 @@ service cloud.firestore {
                 || (d.stockQty is int && d.stockQty >= 0 && d.stockQty <= 100000))
             && d.isAvailable is bool
             && optStr(d.get('imageUrl', null), 300000)
-            && optStr(d.get('categoryId', null), 100);
+            && optStr(d.get('categoryId', null), 100)
+            && d.get('addons', []) is list && d.get('addons', []).size() <= 10
+            && d.get('tags', []) is list && d.get('tags', []).size() <= 4;
         }
         // The order this stock change belongs to.
         function stockOrder() { return /databases/$(database)/documents/orders/$(request.resource.data.lastStockOrder); }
@@ -159,6 +173,10 @@ service cloud.firestore {
         allow create, update: if (ownsStall(vendorId) || isAdmin())
           && validProduct(request.resource.data);
         allow delete: if ownsStall(vendorId) || isAdmin();
+        // Staff can switch items on/off (sold out), nothing else.
+        allow update: if isStaffOf(vendorId)
+          && changed().hasOnly(['isAvailable'])
+          && request.resource.data.isAvailable is bool;
 
         // Students move stock only together with an order, by exactly that
         // order's quantity: taking it when the order is created in the same
@@ -200,7 +218,7 @@ service cloud.firestore {
       allow read: if signedIn() && (
         resource.data.customerId == me()
         || isAdmin()
-        || ownsStall(resource.data.vendorId));
+        || worksAt(resource.data.vendorId));
 
       // Created only through the app's placeOrder transaction. The totals must
       // be internally consistent; whether the line PRICES match the menu
@@ -255,7 +273,7 @@ service cloud.firestore {
       // Stall/admin progress the order through the flow, but the stall can't
       // rewrite who ordered, what, or for how much.
       allow update: if isAdmin()
-        || (ownsStall(resource.data.vendorId)
+        || (worksAt(resource.data.vendorId)
             && !changed().hasAny(['customerId', 'customerName', 'vendorId', 'items',
                                   'subtotal', 'discount', 'total', 'paymentMethod',
                                   'orderNumber', 'createdAt', 'stockTaken', 'queueNumber'])
@@ -330,6 +348,25 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --------------------------------------------------------- loyalty -----
+    // loyalty/{vendorId}_{customerId}: a stamp card. Only the stall (owner or
+    // staff) writes it; the student can read their own.
+    match /loyalty/{cardId} {
+      function validCard(d) {
+        return cardId == d.vendorId + '_' + d.customerId
+          && d.stamps is int && d.stamps >= 0 && d.stamps <= 1000
+          && d.get('redeemed', 0) is int;
+      }
+      allow read: if signedIn()
+        && (resource.data.customerId == me() || worksAt(resource.data.vendorId));
+      allow create: if worksAt(request.resource.data.vendorId)
+        && validCard(request.resource.data);
+      allow update: if worksAt(resource.data.vendorId)
+        && validCard(request.resource.data)
+        && request.resource.data.vendorId == resource.data.vendorId
+        && request.resource.data.customerId == resource.data.customerId;
+    }
+
     // -------------------------------------------------------- settings -----
     match /settings/{docId} {
       function validSetting(d) {
@@ -360,7 +397,7 @@ service cloud.firestore {
     // published by the stall's own app for students' wait estimates.
     match /counters/{docId} {
       function ownsCounter() {
-        return docId.matches('vendor_.+') && ownsStall(docId.split('_')[1]);
+        return docId.matches('vendor_.+') && worksAt(docId.split('_')[1]);
       }
       // Queue numbers only ever go up by one, or restart at 1 on a new day,
       // and only inside an order transaction (which carries my fresh

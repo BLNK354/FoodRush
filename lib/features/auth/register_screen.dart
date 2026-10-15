@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
@@ -66,7 +67,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreed) {
-      showSnack(context, 'Please agree to the ground rules to continue.',
+      showSnack(context, tr('Please agree to the ground rules to continue.'),
           error: true);
       return;
     }
@@ -106,7 +107,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Create your account',
+            Text(tr('Create your account'),
                 style: Theme.of(context)
                     .textTheme
                     .headlineMedium
@@ -117,23 +118,36 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             // first-account-admin window is open.
             SegmentedButton<String>(
               segments: [
-                const ButtonSegment(
+                ButtonSegment(
                     value: kRoleCustomer,
                     icon: Icon(Icons.person_outline),
-                    label: Text('Student')),
+                    label: Text(tr('Student'))),
                 if (_bootstrapOpen)
                   const ButtonSegment(
                       value: kRoleAdmin,
                       icon: Icon(Icons.admin_panel_settings_outlined),
                       label: Text('Admin')),
-                const ButtonSegment(
+                ButtonSegment(
                     value: kRoleVendor,
                     icon: Icon(Icons.storefront_outlined),
-                    label: Text('Stall owner')),
+                    label: Text(tr('Stall owner'))),
+                ButtonSegment(
+                    value: kRoleStaff,
+                    icon: Icon(Icons.badge_outlined),
+                    label: Text(tr('Staff'))),
               ],
               selected: {_role},
               onSelectionChanged: (s) => setState(() => _role = s.first),
             ),
+
+            if (_role == kRoleStaff) ...[
+              const SizedBox(height: 12),
+              Text(
+                'For people who work at a stall. After signing up, ask the stall '
+                'owner to add your email under Settings → Staff.',
+                style: TextStyle(color: FrColors.muted, fontSize: 13),
+              ),
+            ],
 
             // Admin explainer: shown only when the Admin tab is selected.
             if (_role == kRoleAdmin) ...[
@@ -171,7 +185,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
             FrTextField(
               controller: _fullName,
-              label: 'Full name',
+              label: tr('Full name'),
               maxLength: Limits.name,
               validator: validatePersonName,
             ),
@@ -198,7 +212,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               const SizedBox(height: 16),
               FrTextField(
                 controller: _studentNumber,
-                label: 'Student number (optional)',
+                label: tr('Student number (optional)'),
                 keyboardType: TextInputType.text,
                 maxLength: Limits.studentNumber,
                 validator: validateStudentNumber,
@@ -208,7 +222,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: 16),
             FrTextField(
               controller: _phone,
-              label: 'Mobile number (optional)',
+              label: tr('Mobile number (optional)'),
               keyboardType: TextInputType.phone,
               maxLength: Limits.phone,
               validator: validatePhone,
@@ -219,7 +233,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 Expanded(
                   child: FrTextField(
                     controller: _password,
-                    label: 'Password',
+                    label: tr('Password'),
                     obscure: true,
                     maxLength: Limits.password,
                     validator: (v) =>
@@ -232,7 +246,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 Expanded(
                   child: FrTextField(
                     controller: _confirm,
-                    label: 'Confirm',
+                    label: tr('Confirm'),
                     obscure: true,
                     maxLength: Limits.password,
                     validator: (v) =>
@@ -298,7 +312,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: () => context.push('/privacy'),
-                child: const Text('How we use your data (privacy notice)'),
+                child: Text(tr('How we use your data (privacy notice)')),
               ),
             ),
             const SizedBox(height: 8),
@@ -311,17 +325,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Create account'),
+                  : Text(tr('Create account')),
             ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('Already have an account?',
+                Text(tr('Already have an account?'),
                     style: TextStyle(color: FrColors.muted)),
                 TextButton(
                   onPressed: () => context.go('/login'),
-                  child: const Text('Sign in'),
+                  child: Text(tr('Sign in')),
                 ),
               ],
             ),

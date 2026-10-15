@@ -132,16 +132,75 @@ class Repository {
     return Vendor.fromMap(snap.id, snap.data()!);
   }
 
+  /// The stall I own, or (staff) the stall whose owner listed my email.
   Future<Vendor?> getMyVendor() async {
-    final snap = await _db
+    var snap = await _db
         .collection(kColVendors)
         .where('ownerId', isEqualTo: _uid)
         .limit(1)
         .get();
+    final email = _auth.currentUser?.email?.toLowerCase();
+    if (snap.docs.isEmpty && email != null) {
+      snap = await _db
+          .collection(kColVendors)
+          .where('staffEmails', arrayContains: email)
+          .limit(1)
+          .get();
+    }
     if (snap.docs.isEmpty) return null;
     final d = snap.docs.first;
     return Vendor.fromMap(d.id, d.data());
   }
+
+  // =========================================================================
+  // LOYALTY (loyalty/{vendorId}_{customerId}; written only by the stall)
+  // =========================================================================
+
+  DocumentReference<Map<String, dynamic>> _card(String vendorId, String customerId) =>
+      _db.collection(kColLoyalty).doc('${vendorId}_$customerId');
+
+  /// My stamp card at [vendorId] (student), or a card for [customerId]
+  /// (stall). Null if they have no stamps there yet.
+  Future<LoyaltyCard?> getLoyaltyCard(String vendorId, {String? customerId}) async {
+    final snap = await _card(vendorId, customerId ?? _uid).get();
+    return snap.exists ? LoyaltyCard.fromMap(snap.data()!) : null;
+  }
+
+  /// Stall: marks the order picked up and, if the stall runs a stamp card,
+  /// gives the student one stamp, in one batch.
+  Future<void> completeOrder(Order order, {required bool giveStamp}) async {
+    final batch = _db.batch();
+    batch.update(_db.collection(kColOrders).doc(order.id), {
+      'status': kOrderCompleted,
+      'completedAt': FieldValue.serverTimestamp(),
+    });
+    if (giveStamp) {
+      batch.set(_card(order.vendorId, order.customerId), {
+        'vendorId': order.vendorId,
+        'customerId': order.customerId,
+        'stamps': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
+  /// Stall: hands over the reward, spending [cost] stamps. Fails if the card
+  /// no longer has enough (e.g. redeemed on another device a moment ago).
+  Future<void> redeemLoyalty(String vendorId, String customerId, int cost) =>
+      _db.runTransaction((tx) async {
+        final ref = _card(vendorId, customerId);
+        final snap = await tx.get(ref);
+        final stamps = (snap.data()?['stamps'] as num?)?.toInt() ?? 0;
+        if (stamps < cost) {
+          throw Exception('Not enough stamps ($stamps of $cost).');
+        }
+        tx.update(ref, {
+          'stamps': stamps - cost,
+          'redeemed': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
 
   Future<void> updateMyVendor({
     required String vendorId,
@@ -155,6 +214,10 @@ class Repository {
     bool removeLogo = false,
     Map<int, DayHours>? hours, // empty map = no schedule
     int? prepMinutes,
+    bool? loyaltyEnabled,
+    int? loyaltyStamps,
+    String? loyaltyReward,
+    List<String>? staffEmails,
   }) async {
     await _db.collection(kColVendors).doc(vendorId).update({
       'name': name,
@@ -168,6 +231,11 @@ class Repository {
       if (hours != null)
         'hours': {for (final e in hours.entries) '${e.key}': e.value.toMap()},
       if (prepMinutes != null) 'prepMinutes': prepMinutes,
+      if (loyaltyEnabled != null) 'loyaltyEnabled': loyaltyEnabled,
+      if (loyaltyStamps != null) 'loyaltyStamps': loyaltyStamps,
+      if (loyaltyReward != null) 'loyaltyReward': loyaltyReward,
+      if (staffEmails != null)
+        'staffEmails': [for (final e in staffEmails) e.trim().toLowerCase()],
     });
   }
 
@@ -247,6 +315,8 @@ class Repository {
     required bool isAvailable,
     int? stockQty,
     String? categoryId,
+    List<Addon> addons = const [],
+    List<String> tags = const [],
   }) async {
     final ref = _db
         .collection(kColVendors)
@@ -261,6 +331,8 @@ class Repository {
       'isAvailable': isAvailable,
       'stockQty': stockQty,
       'categoryId': categoryId,
+      'addons': [for (final a in addons) a.toMap()],
+      'tags': tags,
     };
     if (id == null) {
       data['createdAt'] = FieldValue.serverTimestamp();
@@ -269,6 +341,16 @@ class Repository {
       await ref.doc(id).update(data);
     }
   }
+
+  /// Flips only isAvailable (so add-ons/tags/stock are never rewritten).
+  Future<void> setProductAvailable(
+          String vendorId, String productId, bool available) =>
+      _db
+          .collection(kColVendors)
+          .doc(vendorId)
+          .collection(kColProducts)
+          .doc(productId)
+          .update({'isAvailable': available});
 
   Future<void> deleteProduct(String vendorId, String id) async {
     await _db
@@ -484,27 +566,37 @@ class Repository {
             '${kOrderCooldown.inSeconds} seconds before ordering again.');
       }
 
-      final lines = <(DocumentReference<Map<String, dynamic>>, Product, int)>[];
+      // Each product is read once, even if several lines (add-on combos)
+      // use it; stock is checked against the product's total.
+      final products = <String, (DocumentReference<Map<String, dynamic>>, Product)>{};
+      final lines = <(Product, int, List<String>)>[];
+      final totalQty = <String, int>{};
       for (final it in items) {
         final productId = it['product_id'] as String;
         final qty = (it['qty'] as num).toInt();
-        final prodRef = _db
-            .collection(kColVendors)
-            .doc(vendorId)
-            .collection(kColProducts)
-            .doc(productId);
-        final prodSnap = await tx.get(prodRef);
-        if (!prodSnap.exists) {
-          throw Exception('A product in your cart no longer exists.');
+        final addons = [for (final a in (it['addons'] as List? ?? const [])) '$a'];
+        if (!products.containsKey(productId)) {
+          final prodRef = _db
+              .collection(kColVendors)
+              .doc(vendorId)
+              .collection(kColProducts)
+              .doc(productId);
+          final prodSnap = await tx.get(prodRef);
+          if (!prodSnap.exists) {
+            throw Exception('A product in your cart no longer exists.');
+          }
+          products[productId] =
+              (prodRef, Product.fromMap(prodSnap.id, prodSnap.data()!));
         }
-        final p = Product.fromMap(prodSnap.id, prodSnap.data()!);
+        final p = products[productId]!.$2;
         if (!p.isAvailable) {
           throw Exception('"${p.name}" is currently unavailable.');
         }
-        if (p.stockQty != null && p.stockQty! < qty) {
+        totalQty[productId] = (totalQty[productId] ?? 0) + qty;
+        if (p.stockQty != null && p.stockQty! < totalQty[productId]!) {
           throw Exception('"${p.name}" only has ${p.stockQty} left.');
         }
-        lines.add((prodRef, p, qty));
+        lines.add((p, qty, addons));
       }
 
       int lastCount = 0;
@@ -521,17 +613,24 @@ class Repository {
 
       final pricedItems = <Map<String, dynamic>>[];
       var sum = 0.0;
-      for (final (_, p, qty) in lines) {
+      for (final (p, qty, addons) in lines) {
+        // Price from the menu as it is NOW (base + chosen add-ons).
+        final unit = p.priceWith(addons);
+        if (unit == null) {
+          throw Exception('An add-on for "${p.name}" is no longer offered. '
+              'Remove it from your cart and add it again.');
+        }
         pricedItems.add({
           'productId': p.id,
           'name': p.name,
-          'unitPrice': p.price,
+          'unitPrice': unit,
           'qty': qty,
-          'lineTotal': double.parse((p.price * qty).toStringAsFixed(2)),
+          'lineTotal': double.parse((unit * qty).toStringAsFixed(2)),
+          if (addons.isNotEmpty) 'addons': addons,
           // Unlimited products (stockQty null) are never touched.
           'stockTracked': p.stockQty != null,
         });
-        sum += p.price * qty;
+        sum += unit * qty;
       }
       subtotal = double.parse(sum.toStringAsFixed(2));
 
@@ -546,10 +645,13 @@ class Repository {
       // Each stock change names this order; the rules check it takes exactly
       // the order's quantity (so stock can't be vandalised on its own).
       final stockTaken = <String, int>{};
-      for (final (ref, p, qty) in lines) {
+      for (final MapEntry(key: id, value: (ref, p)) in products.entries) {
         if (p.stockQty != null) {
-          stockTaken[p.id] = qty;
-          tx.update(ref, {'stockQty': p.stockQty! - qty, 'lastStockOrder': orderId});
+          stockTaken[id] = totalQty[id]!;
+          tx.update(ref, {
+            'stockQty': p.stockQty! - totalQty[id]!,
+            'lastStockOrder': orderId,
+          });
         }
       }
       tx.update(userRef, {'lastOrderAt': FieldValue.serverTimestamp()});

@@ -24,6 +24,9 @@ abstract final class Limits {
   static const announcement = 280;
   static const search = 100;
   static const promoCode = 20;
+  static const addonName = 30;
+  static const reward = 60;
+  static const maxAddonPrice = 1000.0;
 
   static const maxPrice = 10000.0; // ₱ per item
   static const maxStock = 9999;

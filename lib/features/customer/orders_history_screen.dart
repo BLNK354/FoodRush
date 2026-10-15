@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/order.dart';
@@ -78,8 +79,8 @@ class _OrdersHistoryScreenState extends ConsumerState<OrdersHistoryScreen> {
     final orders = _orders;
 
     return FrPage(
-      title: 'My orders',
-      subtitle: 'Track your pickups and review past orders.',
+      title: tr('My orders'),
+      subtitle: tr('Track your pickups and review past orders.'),
       actions: [
         IconButton(
           onPressed: () {},
@@ -96,14 +97,14 @@ class _OrdersHistoryScreenState extends ConsumerState<OrdersHistoryScreen> {
             ),
           )
         else if (orders.isEmpty)
-          const EmptyState(
+          EmptyState(
             icon: Icons.receipt_long_outlined,
-            title: 'No orders yet',
-            message: 'Your order history will appear here.',
+            title: tr('No orders yet'),
+            message: tr('Your order history will appear here.'),
           )
         else ...[
           _OrderSection(
-            title: 'Active',
+            title: tr('Active'),
             orders: orders
                 .where((o) => o.isActive)
                 .toList(),
@@ -111,7 +112,7 @@ class _OrdersHistoryScreenState extends ConsumerState<OrdersHistoryScreen> {
           ),
           const SizedBox(height: 24),
           _OrderSection(
-            title: 'Past',
+            title: tr('Past'),
             orders: [...orders, ..._older]
                 .where((o) => !o.isActive)
                 .toList(),
@@ -229,7 +230,7 @@ class _OrderCard extends ConsumerWidget {
                       style: const TextStyle(
                           fontWeight: FontWeight.w900, fontSize: 16)),
                   if (order.queueNumber != null && order.isActive)
-                    Text('Queue #${order.queueNumber}',
+                    Text(tr('Queue #{n}', {'n': order.queueNumber}),
                         style: const TextStyle(
                             color: FrColors.primary,
                             fontWeight: FontWeight.w700,
@@ -241,13 +242,13 @@ class _OrderCard extends ConsumerWidget {
                   (order.status == kOrderAwaitingPayment ||
                       order.status == kOrderProofSubmitted))
                 IconButton(
-                  tooltip: 'Cancel order',
+                  tooltip: tr('Cancel order'),
                   icon: Icon(Icons.close, color: FrColors.muted),
                   onPressed: () => _cancel(context, ref),
                 ),
               if (!order.isActive)
                 IconButton(
-                  tooltip: 'Order again',
+                  tooltip: tr('Order again'),
                   icon: const Icon(Icons.replay, color: FrColors.primary),
                   onPressed: () => reorder(context, ref, order),
                 ),
@@ -261,7 +262,7 @@ class _OrderCard extends ConsumerWidget {
   Future<void> _cancel(BuildContext context, WidgetRef ref) async {
     final ok = await confirmDialog(
       context,
-      title: 'Cancel this order?',
+      title: tr('Cancel this order?'),
       message: order.status == kOrderProofSubmitted
           ? 'This cannot be undone. You already sent payment, so the stall '
               'will owe you a ${peso(order.total)} refund. You can follow it here.'
@@ -272,7 +273,7 @@ class _OrderCard extends ConsumerWidget {
     if (!ok) return;
     try {
       await Repository.instance.cancelOrder(order.id);
-      if (context.mounted) showSnack(context, 'Order cancelled');
+      if (context.mounted) showSnack(context, tr('Order cancelled'));
     } catch (e) {
       if (context.mounted) showSnack(context, 'Cancel failed: $e', error: true);
     }
