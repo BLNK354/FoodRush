@@ -7,6 +7,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/theme_mode.dart';
+import '../../shared/language_picker.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
@@ -247,15 +248,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           const SizedBox(height: 16),
                           SectionHeader(tr('Language')),
-                          SegmentedButton<bool>(
-                            segments: const [
-                              ButtonSegment(value: false, label: Text('English')),
-                              ButtonSegment(value: true, label: Text('Filipino')),
-                            ],
-                            selected: {ref.watch(filipinoProvider)},
-                            onSelectionChanged: (s) => ref
-                                .read(filipinoProvider.notifier)
-                                .set(s.first),
+                          OutlinedButton.icon(
+                            onPressed: () => showLanguagePicker(context, ref),
+                            icon: const Icon(Icons.language_rounded),
+                            label: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(languageFor(
+                                          ref.watch(languageProvider))
+                                      .nativeName),
+                                ),
+                                const Icon(Icons.expand_more_rounded),
+                              ],
+                            ),
                           ),
                         ],
                       ),

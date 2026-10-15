@@ -178,10 +178,10 @@ class _FoodRushAppState extends ConsumerState<FoodRushApp>
   @override
   Widget build(BuildContext context) {
     final dark = _resolveDark(ref.watch(themeModeProvider));
-    final fil = ref.watch(filipinoProvider);
-    if (dark != FrColors.dark || fil != Lang.fil) {
+    final lang = ref.watch(languageProvider);
+    if (dark != FrColors.dark || lang != Lang.code) {
       FrColors.dark = dark;
-      Lang.fil = fil;
+      Lang.current = languageFor(lang);
       _rebuildEverything();
     }
     final theme = _themes.putIfAbsent(dark, buildFrTheme);

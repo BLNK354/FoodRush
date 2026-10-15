@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/i18n.dart';
 import '../shared/browser/browser.dart' as browser;
 
 /// Light / dark / follow-the-device, remembered per browser.
@@ -23,19 +24,23 @@ class ThemeModeController extends Notifier<ThemeMode> {
 final themeModeProvider =
     NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
 
-/// English or Filipino for the student screens, remembered per browser.
-/// true = Filipino.
-class FilipinoController extends Notifier<bool> {
+/// The app language (an [AppLanguage] code), remembered per browser. The
+/// first visit follows the device language when we support it.
+class LanguageController extends Notifier<String> {
   static const _key = 'lang';
 
   @override
-  bool build() => browser.readPref(_key) == 'fil';
+  String build() {
+    final saved = browser.readPref(_key);
+    if (saved != null && kLanguages.any((l) => l.code == saved)) return saved;
+    return deviceLanguageCode();
+  }
 
-  void set(bool fil) {
-    state = fil;
-    browser.writePref(_key, fil ? 'fil' : 'en');
+  void set(String code) {
+    state = code;
+    browser.writePref(_key, code);
   }
 }
 
-final filipinoProvider =
-    NotifierProvider<FilipinoController, bool>(FilipinoController.new);
+final languageProvider =
+    NotifierProvider<LanguageController, String>(LanguageController.new);
