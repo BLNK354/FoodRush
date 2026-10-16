@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
-import '../shared/browser/browser.dart' as browser;
 import '../models/user.dart';
 import 'repository.dart';
 
@@ -244,12 +245,8 @@ class AuthController extends Notifier<AuthData> {
 
       await _awaitProfile();
       // Prove they own the inbox (the LPU gate is meaningless otherwise).
-      try {
-        await cred.user!.sendEmailVerification();
-        markVerificationSent(cred.user!.uid);
-      } catch (_) {
-        // Rate-limited or offline: the verify screen offers "Resend".
-      }
+      // The verify screen sends again if this fails (offline, rate limit).
+      await sendVerification();
       return null;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
@@ -321,30 +318,71 @@ class AuthController extends Notifier<AuthData> {
     return verified;
   }
 
-  /// When this browser last sent [uid] a verification email, so the verify
-  /// screen neither claims a link was sent when none was (accounts made
-  /// before verification existed) nor re-sends on every reload.
-  static DateTime? verificationSentAt(String uid) {
-    final ms = int.tryParse(browser.readPref('verifySent.$uid') ?? '');
-    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  /// Id of an email's verification-link record (sha256 of the lowercased
+  /// address, matching the security rules).
+  static String verifyLinkId(String email) =>
+      sha256.convert(utf8.encode(email.trim().toLowerCase())).toString();
+
+  static DocumentReference<Map<String, dynamic>> verifyLinkRef(String email) =>
+      FirebaseFirestore.instance
+          .collection(kColVerifyLinks)
+          .doc(verifyLinkId(email));
+
+  /// When the latest verification email went out and how many were sent
+  /// this hour, or null if none was ever sent (accounts made before
+  /// verification existed).
+  static Future<VerifyLinkInfo?> loadVerifyLink(String email) async {
+    final snap = await verifyLinkRef(email).get();
+    final d = snap.data();
+    if (d == null) return null;
+    return VerifyLinkInfo.fromMap(d);
   }
 
-  static void markVerificationSent(String uid) => browser.writePref(
-      'verifySent.$uid', '${DateTime.now().millisecondsSinceEpoch}');
-
-  /// Sends the verification email again. Returns an error message or null.
-  Future<String?> resendVerification() async {
+  /// Records the send (server-stamped; the rules cap it at one a minute and
+  /// [kVerifySendsPerHour] an hour), then emails a fresh link. Returns an
+  /// error message or null.
+  Future<String?> sendVerification() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) return 'Not signed in.';
+    VerifyLinkInfo? prev;
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return 'Not signed in.';
+      prev = await loadVerifyLink(email);
+    } catch (_) {}
+    final now = DateTime.now();
+    final newWindow = prev == null ||
+        now.isAfter(prev.windowStart.add(const Duration(hours: 1)));
+    if (!newWindow && prev.count >= kVerifySendsPerHour) {
+      return 'You have sent $kVerifySendsPerHour emails this hour. '
+          'Try again after ${_clock(prev.windowStart.add(const Duration(hours: 1)))}.';
+    }
+    try {
+      await verifyLinkRef(email).set({
+        'sentAt': FieldValue.serverTimestamp(),
+        'windowStart': newWindow
+            ? FieldValue.serverTimestamp()
+            : Timestamp.fromDate(prev.windowStart),
+        'count': newWindow ? 1 : prev.count + 1,
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        return 'Please wait a minute before sending another email.';
+      }
+      return e.message ?? 'Could not send the email.';
+    }
+    try {
       await user.sendEmailVerification();
-      markVerificationSent(user.uid);
       return null;
     } on FirebaseAuthException catch (e) {
       return e.code == 'too-many-requests'
           ? 'Too many emails sent. Wait a few minutes, then try again.'
           : (e.message ?? 'Could not send the email.');
     }
+  }
+
+  static String _clock(DateTime t) {
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    return '$h:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'AM' : 'PM'}';
   }
 
   /// Students only: anonymises their name on past orders and reviews,
@@ -387,3 +425,34 @@ class AuthController extends Notifier<AuthData> {
 
 final authControllerProvider =
     NotifierProvider<AuthController, AuthData>(AuthController.new);
+
+/// A verification email's server-stamped send time and this hour's count.
+class VerifyLinkInfo {
+  final DateTime sentAt;
+  final DateTime windowStart;
+  final int count;
+  const VerifyLinkInfo(
+      {required this.sentAt, required this.windowStart, required this.count});
+
+  factory VerifyLinkInfo.fromMap(Map<String, dynamic> d) {
+    DateTime t(Object? v) =>
+        v is Timestamp ? v.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+    return VerifyLinkInfo(
+      sentAt: t(d['sentAt']),
+      windowStart: t(d['windowStart']),
+      count: (d['count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  DateTime get expiresAt => sentAt.add(kVerifyLinkLifetime);
+  bool isExpired([DateTime? now]) => !(now ?? DateTime.now()).isBefore(expiresAt);
+
+  /// Sends left this hour (the window restarts an hour after it began).
+  int sendsLeft([DateTime? now]) {
+    final n = now ?? DateTime.now();
+    if (n.isAfter(windowStart.add(const Duration(hours: 1)))) {
+      return kVerifySendsPerHour;
+    }
+    return (kVerifySendsPerHour - count).clamp(0, kVerifySendsPerHour);
+  }
+}

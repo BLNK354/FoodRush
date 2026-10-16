@@ -233,4 +233,50 @@ const Map<String, String> es = {
       'Enviando…',
   'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
       'Enviado a las {time} desde {sender}. ¿No está en tu bandeja? Revisa Spam o Promociones.',
+
+  // ---- email links (expiry, counter, link page)
+  'This link has expired. Send a new one.':
+      'Este enlace ha caducado. Envía uno nuevo.',
+  'Link expires in {time}':
+      'El enlace caduca en {time}',
+  'Email limit reached. Try again after {time}.':
+      'Límite de correos alcanzado. Inténtalo después de las {time}.',
+  'Emails sent this hour: {n} of {max}':
+      'Correos enviados esta hora: {n} de {max}',
+  'Checking your link…':
+      'Comprobando tu enlace…',
+  'This link has expired':
+      'Este enlace ha caducado',
+  'Links work for {m} minutes. Open FoodRush and send a new one.':
+      'Los enlaces funcionan durante {m} minutos. Abre FoodRush y envía uno nuevo.',
+  'This link can’t be used':
+      'Este enlace no se puede usar',
+  'It was already used, or a newer email replaced it. Open FoodRush to continue.':
+      'Ya se usó o lo reemplazó un correo más reciente. Abre FoodRush para continuar.',
+  'Email verified!':
+      '¡Correo verificado!',
+  '{email} is confirmed. You can order now.':
+      '{email} está confirmado. Ya puedes pedir.',
+  'Choose a new password':
+      'Elige una nueva contraseña',
+  'For {email}':
+      'Para {email}',
+  'Password changed':
+      'Contraseña cambiada',
+  'Sign in with your new password.':
+      'Inicia sesión con tu nueva contraseña.',
+  'Email change undone':
+      'Cambio de correo deshecho',
+  'Your sign-in email is {email} again. Consider changing your password too.':
+      'Tu correo de inicio de sesión vuelve a ser {email}. Te recomendamos cambiar también tu contraseña.',
+  'Something went wrong':
+      'Algo salió mal',
+  'Get a new link':
+      'Obtener un enlace nuevo',
+  'Continue to FoodRush':
+      'Continuar a FoodRush',
+  'New password':
+      'Nueva contraseña',
+  'Save new password':
+      'Guardar nueva contraseña',
 };

@@ -212,4 +212,50 @@ const Map<String, String> ko = {
       '보내는 중…',
   'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
       '{time}에 {sender}에서 보냈어요. 받은편지함에 없나요? 스팸함이나 프로모션함을 확인하세요.',
+
+  // ---- email links (expiry, counter, link page)
+  'This link has expired. Send a new one.':
+      '이 링크는 만료됐어요. 새 링크를 보내세요.',
+  'Link expires in {time}':
+      '링크 만료까지 {time}',
+  'Email limit reached. Try again after {time}.':
+      '이메일 한도에 도달했어요. {time} 이후에 다시 시도하세요.',
+  'Emails sent this hour: {n} of {max}':
+      '이번 시간에 보낸 이메일: {n}/{max}',
+  'Checking your link…':
+      '링크를 확인하는 중…',
+  'This link has expired':
+      '이 링크는 만료됐어요',
+  'Links work for {m} minutes. Open FoodRush and send a new one.':
+      '링크는 {m}분 동안 유효해요. FoodRush를 열고 새 링크를 보내세요.',
+  'This link can’t be used':
+      '이 링크는 사용할 수 없어요',
+  'It was already used, or a newer email replaced it. Open FoodRush to continue.':
+      '이미 사용됐거나 더 최근 이메일로 대체됐어요. FoodRush를 열어 계속하세요.',
+  'Email verified!':
+      '이메일 인증 완료!',
+  '{email} is confirmed. You can order now.':
+      '{email} 인증이 완료됐어요. 이제 주문할 수 있어요.',
+  'Choose a new password':
+      '새 비밀번호 설정',
+  'For {email}':
+      '{email} 계정',
+  'Password changed':
+      '비밀번호가 변경됐어요',
+  'Sign in with your new password.':
+      '새 비밀번호로 로그인하세요.',
+  'Email change undone':
+      '이메일 변경 취소됨',
+  'Your sign-in email is {email} again. Consider changing your password too.':
+      '로그인 이메일이 다시 {email}(으)로 바뀌었어요. 비밀번호도 변경하는 것이 좋아요.',
+  'Something went wrong':
+      '문제가 발생했어요',
+  'Get a new link':
+      '새 링크 받기',
+  'Continue to FoodRush':
+      'FoodRush로 계속',
+  'New password':
+      '새 비밀번호',
+  'Save new password':
+      '새 비밀번호 저장',
 };

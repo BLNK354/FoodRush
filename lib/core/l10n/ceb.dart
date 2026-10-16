@@ -234,4 +234,50 @@ const Map<String, String> ceb = {
       'Nagpadala…',
   'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
       'Napadala sa {time} gikan sa {sender}. Wala sa inbox? Tan-awa ang Spam o Promotions.',
+
+  // ---- email links (expiry, counter, link page)
+  'This link has expired. Send a new one.':
+      'Na-expire na kini nga link. Padala og bag-o.',
+  'Link expires in {time}':
+      'Mo-expire ang link sulod sa {time}',
+  'Email limit reached. Try again after {time}.':
+      'Naabot na ang limit sa email. Sulayi pag-usab human sa {time}.',
+  'Emails sent this hour: {n} of {max}':
+      'Mga email nga napadala karong orasa: {n} sa {max}',
+  'Checking your link…':
+      'Gisusi ang imong link…',
+  'This link has expired':
+      'Na-expire na kini nga link',
+  'Links work for {m} minutes. Open FoodRush and send a new one.':
+      'Ang mga link molihok sulod sa {m} ka minuto. Ablihi ang FoodRush ug padala og bag-o.',
+  'This link can’t be used':
+      'Dili na magamit kini nga link',
+  'It was already used, or a newer email replaced it. Open FoodRush to continue.':
+      'Nagamit na kini, o gipulihan sa mas bag-ong email. Ablihi ang FoodRush aron mopadayon.',
+  'Email verified!':
+      'Na-verify na ang email!',
+  '{email} is confirmed. You can order now.':
+      'Kumpirmado na ang {email}. Maka-order na ka.',
+  'Choose a new password':
+      'Pili og bag-ong password',
+  'For {email}':
+      'Para sa {email}',
+  'Password changed':
+      'Nausab na ang password',
+  'Sign in with your new password.':
+      'Mag-sign in gamit ang imong bag-ong password.',
+  'Email change undone':
+      'Gibalik ang daang email',
+  'Your sign-in email is {email} again. Consider changing your password too.':
+      '{email} na usab ang imong email sa pag-sign in. Maayo usab nga usbon ang imong password.',
+  'Something went wrong':
+      'Naay sayop nga nahitabo',
+  'Get a new link':
+      'Pagkuha og bag-ong link',
+  'Continue to FoodRush':
+      'Padayon sa FoodRush',
+  'New password':
+      'Bag-ong password',
+  'Save new password':
+      'I-save ang bag-ong password',
 };

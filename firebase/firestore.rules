@@ -429,5 +429,30 @@ service cloud.firestore {
             || (ownsCounter() && changed().hasOnly(['active', 'activeAt'])
                 && num(request.resource.data.active, 0, 100000)));
     }
+
+    // ------------------------------------------------- verification links ----
+    // One doc per email (id = sha256 of the lowercased address) recording
+    // when the latest verification email was sent and how many went out this
+    // hour. The app's email-link page reads it, often signed out on another
+    // device, to refuse links older than 15 minutes. It holds no address,
+    // only timestamps and a count. Writes need a 60 s gap and at most 5 per
+    // rolling hour, all stamped with the server's clock.
+    match /verifyLinks/{id} {
+      allow get: if true;
+      allow create, update: if request.auth != null
+        && request.auth.token.email is string
+        && id == hashing.sha256(request.auth.token.email.lower()).toHexString().lower()
+        && request.resource.data.keys().hasOnly(['sentAt', 'count', 'windowStart'])
+        && request.resource.data.sentAt == request.time
+        && (resource == null
+            || request.time > resource.data.sentAt + duration.value(60, 's'))
+        && ((resource == null
+             || request.time > resource.data.windowStart + duration.value(1, 'h'))
+            ? (request.resource.data.windowStart == request.time
+               && request.resource.data.count == 1)
+            : (request.resource.data.windowStart == resource.data.windowStart
+               && request.resource.data.count == resource.data.count + 1
+               && request.resource.data.count <= 5));
+    }
   }
 }

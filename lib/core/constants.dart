@@ -123,6 +123,16 @@ const String kPathPaymentProofs = 'payment-proofs';
 // Firestore collections
 // ---------------------------------------------------------------------------
 const String kColUsers = 'users';
+const String kColVerifyLinks = 'verifyLinks';
+
+/// Verification email links stop working this long after they are sent
+/// (enforced by the in-app link page, see lib/features/auth/auth_action_screen.dart).
+const Duration kVerifyLinkLifetime = Duration(minutes: 15);
+
+/// Most verification emails per rolling hour, and the gap between them
+/// (the security rules enforce both).
+const int kVerifySendsPerHour = 5;
+const Duration kVerifyResendGap = Duration(seconds: 60);
 const String kColVendors = 'vendors';
 const String kColCategories = 'categories';
 const String kColProducts = 'products';
