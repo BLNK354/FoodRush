@@ -27,6 +27,7 @@ import '../features/vendor/vendor_promotions_screen.dart';
 import '../features/vendor/vendor_reports_screen.dart';
 import '../features/vendor/vendor_settings_screen.dart';
 import '../providers/auth_controller.dart';
+import '../features/auth/auth_action_screen.dart';
 import '../core/constants.dart';
 import '../shared/announcement_banner.dart';
 import '../shared/order_alerts.dart';
@@ -42,6 +43,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     // No initialLocation override: go_router derives it from the URL so
     // deep links (/#/admin/users etc.) survive refreshes and cold starts.
     redirect: (context, state) {
+      // An email link (verify / reset password) opened the app: handle it
+      // first, signed in or not.
+      if (state.matchedLocation == '/auth/action') return null;
+      if (AuthActionLink.pending != null) return '/auth/action';
       final auth = ref.read(authControllerProvider);
       // Cold start: the app shows a splash over the router while the profile
       // loads. Keep the requested location untouched so deep links survive;
@@ -105,6 +110,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/verify-email',
         builder: (context, state) => const VerifyEmailScreen(),
+      ),
+      GoRoute(
+        path: '/auth/action',
+        builder: (context, state) => const AuthActionScreen(),
       ),
       GoRoute(
         path: '/privacy',

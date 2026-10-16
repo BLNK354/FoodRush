@@ -5,6 +5,7 @@
 // Runs against the local emulator (needs Java 21+), never the real project.
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
   assertFails,
   assertSucceeds,
@@ -149,6 +150,56 @@ describe('student number', () => {
     assertFails(updateDoc(doc(student(), 'users/student1'), { studentNumber: null })));
   test('...but can correct it', () =>
     assertSucceeds(updateDoc(doc(student(), 'users/student1'), { studentNumber: '2023-00001' })));
+});
+
+describe('verification email links (expiry + send counter)', () => {
+  const EMAIL = 'v1@lpunetwork.edu.ph';
+  const id = (e) => createHash('sha256').update(e.toLowerCase()).digest('hex');
+  const me = () => db('vuser', { email: EMAIL, email_verified: false });
+  const ref = (f, e = EMAIL) => doc(f, 'verifyLinks', id(e));
+  const first = () => ({ sentAt: serverTimestamp(), windowStart: serverTimestamp(), count: 1 });
+  const seed = (data) => env.withSecurityRulesDisabled((ctx) => setDoc(ref(ctx.firestore()), data));
+  const ago = (s) => Timestamp.fromMillis(Date.now() - s * 1000);
+
+  test('the first send is recorded with the server time', () =>
+    assertSucceeds(setDoc(ref(me()), first())));
+  test("...but not for someone else's email", () =>
+    assertFails(setDoc(ref(me(), 's9@lpunetwork.edu.ph'), first())));
+  test('...nor with a made-up send time (to stretch the expiry)', () =>
+    assertFails(setDoc(ref(me()), { sentAt: Timestamp.now(), windowStart: serverTimestamp(), count: 1 })));
+  test('...nor starting the counter above 1', () =>
+    assertFails(setDoc(ref(me()), { ...first(), count: 3 })));
+  test('a second send within 60 seconds is refused', async () => {
+    await seed({ sentAt: ago(20), windowStart: ago(20), count: 1 });
+    await assertFails(setDoc(ref(me()), { sentAt: serverTimestamp(), windowStart: ago(20), count: 2 }));
+  });
+  test('a later send in the same hour counts up', async () => {
+    const w = ago(600);
+    await seed({ sentAt: ago(120), windowStart: w, count: 2 });
+    await assertSucceeds(setDoc(ref(me()), { sentAt: serverTimestamp(), windowStart: w, count: 3 }));
+  });
+  test('...but cannot reset the counter mid-hour', async () => {
+    const w = ago(600);
+    await seed({ sentAt: ago(120), windowStart: w, count: 4 });
+    await assertFails(setDoc(ref(me()), { sentAt: serverTimestamp(), windowStart: w, count: 1 }));
+  });
+  test('a sixth send in one hour is refused', async () => {
+    const w = ago(600);
+    await seed({ sentAt: ago(120), windowStart: w, count: 5 });
+    await assertFails(setDoc(ref(me()), { sentAt: serverTimestamp(), windowStart: w, count: 6 }));
+  });
+  test('after an hour the counter starts again', async () => {
+    await seed({ sentAt: ago(3000), windowStart: ago(3700), count: 5 });
+    await assertSucceeds(setDoc(ref(me()), first()));
+  });
+  test('the email-link page can read the send time while signed out', async () => {
+    await seed({ sentAt: ago(30), windowStart: ago(30), count: 1 });
+    await assertSucceeds(getDoc(ref(db(null))));
+  });
+  test('...but nobody can list every record', () =>
+    assertFails(getDocs(collection(db(null), 'verifyLinks'))));
+  test('nobody signed out can write one', () =>
+    assertFails(setDoc(ref(db(null)), first())));
 });
 
 describe('account deletion', () => {

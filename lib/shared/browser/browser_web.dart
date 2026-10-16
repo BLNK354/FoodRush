@@ -165,6 +165,14 @@ void writeSessionValue(String key, String value) {
   } catch (_) {}
 }
 
+/// Swaps the address bar URL without reloading (e.g. to drop a one-time
+/// email-link code so it isn't kept in history or re-used on refresh).
+void replaceUrl(String url) {
+  try {
+    web.window.history.replaceState(null, '', url);
+  } catch (_) {}
+}
+
 void writePref(String key, String value) {
   try {
     web.window.localStorage.setItem('foodrush.$key', value);

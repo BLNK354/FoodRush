@@ -29,6 +29,7 @@ dependencies:
   cloud_firestore: ^6.10.0
   image: ^4.10.1
   web: ^1.1.1
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

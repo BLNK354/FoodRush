@@ -13,6 +13,7 @@ void downloadTextFile(String fileName, String content,
 String? readPref(String key) => null;
 void writePref(String key, String value) {}
 void writeSessionValue(String key, String value) {}
+void replaceUrl(String url) {}
 bool get canPromptInstall => false;
 Future<bool> promptInstall() async => false;
 bool get isInstalledApp => true; // native builds are already "installed"

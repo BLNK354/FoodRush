@@ -45,4 +45,13 @@ done
 
 flutter build web --release ${defines[@]+"${defines[@]}"}
 
+# Give this release's assets their own URL (/v/<id>/assets/..., mapped back
+# to /assets/ by vercel.json) so cached files from an older release are
+# never reused. See web/flutter_bootstrap.js.
+ASSET_VERSION="${VERCEL_GIT_COMMIT_SHA:-$(date +%s)}"
+ASSET_VERSION="${ASSET_VERSION:0:12}"
+sed -i "s/__FR_ASSET_VERSION__/${ASSET_VERSION}/" build/web/flutter_bootstrap.js
+grep -q "/v/' + frAssetVersion" build/web/flutter_bootstrap.js   && grep -q "'${ASSET_VERSION}'" build/web/flutter_bootstrap.js   || { echo "!! asset version was not stamped into flutter_bootstrap.js"; exit 1; }
+echo "==> Asset version ${ASSET_VERSION}"
+
 echo "==> Done. Output in build/web"

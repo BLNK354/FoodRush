@@ -204,4 +204,58 @@ const Map<String, String> zh = {
   'Mix upper and lower case': '混合使用大小写字母',
   'Add a number': '加入数字',
   'Add a symbol like ! or #': '加入 ! 或 # 等符号',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      '正在向 {email} 发送链接…',
+  'Sending…':
+      '发送中…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      '已于 {time} 由 {sender} 发出。收件箱里没有？请查看垃圾邮件或推广邮件。',
+
+  // ---- email links (expiry, counter, link page)
+  'This link has expired. Send a new one.':
+      '此链接已过期，请重新发送。',
+  'Link expires in {time}':
+      '链接将在 {time} 后过期',
+  'Email limit reached. Try again after {time}.':
+      '已达到邮件发送上限，请在 {time} 后重试。',
+  'Emails sent this hour: {n} of {max}':
+      '本小时已发送邮件：{n}/{max}',
+  'Checking your link…':
+      '正在检查你的链接…',
+  'This link has expired':
+      '此链接已过期',
+  'Links work for {m} minutes. Open FoodRush and send a new one.':
+      '链接的有效期为 {m} 分钟。请打开 FoodRush 重新发送。',
+  'This link can’t be used':
+      '此链接无法使用',
+  'It was already used, or a newer email replaced it. Open FoodRush to continue.':
+      '该链接已被使用，或已被更新的邮件取代。请打开 FoodRush 继续。',
+  'Email verified!':
+      '邮箱已验证！',
+  '{email} is confirmed. You can order now.':
+      '{email} 已确认，现在可以下单了。',
+  'Choose a new password':
+      '设置新密码',
+  'For {email}':
+      '用于 {email}',
+  'Password changed':
+      '密码已更改',
+  'Sign in with your new password.':
+      '请使用新密码登录。',
+  'Email change undone':
+      '已撤销邮箱更改',
+  'Your sign-in email is {email} again. Consider changing your password too.':
+      '你的登录邮箱已恢复为 {email}。建议同时修改密码。',
+  'Something went wrong':
+      '出错了',
+  'Get a new link':
+      '获取新链接',
+  'Continue to FoodRush':
+      '继续前往 FoodRush',
+  'New password':
+      '新密码',
+  'Save new password':
+      '保存新密码',
 };

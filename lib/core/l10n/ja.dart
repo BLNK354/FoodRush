@@ -204,4 +204,58 @@ const Map<String, String> ja = {
   'Mix upper and lower case': '大文字と小文字を混ぜましょう',
   'Add a number': '数字を加えましょう',
   'Add a symbol like ! or #': '! や # などの記号を加えましょう',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      '{email} にリンクを送信中…',
+  'Sending…':
+      '送信中…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      '{time} に {sender} から送信しました。受信トレイにない場合は迷惑メールやプロモーションをご確認ください。',
+
+  // ---- email links (expiry, counter, link page)
+  'This link has expired. Send a new one.':
+      'このリンクは期限切れです。新しいリンクを送信してください。',
+  'Link expires in {time}':
+      'リンクの有効期限まで {time}',
+  'Email limit reached. Try again after {time}.':
+      'メール送信の上限に達しました。{time} 以降にもう一度お試しください。',
+  'Emails sent this hour: {n} of {max}':
+      'この1時間に送信したメール：{n}/{max}',
+  'Checking your link…':
+      'リンクを確認しています…',
+  'This link has expired':
+      'このリンクは期限切れです',
+  'Links work for {m} minutes. Open FoodRush and send a new one.':
+      'リンクの有効期間は {m} 分です。FoodRushを開いて新しいリンクを送信してください。',
+  'This link can’t be used':
+      'このリンクは使用できません',
+  'It was already used, or a newer email replaced it. Open FoodRush to continue.':
+      'すでに使用されたか、新しいメールに置き換えられました。FoodRushを開いて続けてください。',
+  'Email verified!':
+      'メールアドレスを確認しました！',
+  '{email} is confirmed. You can order now.':
+      '{email} の確認が完了しました。注文できます。',
+  'Choose a new password':
+      '新しいパスワードを設定',
+  'For {email}':
+      '{email} 用',
+  'Password changed':
+      'パスワードを変更しました',
+  'Sign in with your new password.':
+      '新しいパスワードでログインしてください。',
+  'Email change undone':
+      'メールアドレスの変更を取り消しました',
+  'Your sign-in email is {email} again. Consider changing your password too.':
+      'ログイン用メールアドレスが {email} に戻りました。パスワードの変更もおすすめします。',
+  'Something went wrong':
+      '問題が発生しました',
+  'Get a new link':
+      '新しいリンクを取得',
+  'Continue to FoodRush':
+      'FoodRushへ進む',
+  'New password':
+      '新しいパスワード',
+  'Save new password':
+      '新しいパスワードを保存',
 };

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/constants.dart';
 import 'core/firebase_options.dart';
+import 'features/auth/auth_action_screen.dart';
 import 'core/i18n.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
@@ -80,6 +81,8 @@ Future<void> main() async {
     runApp(_StartupError('Could not connect to Firebase: $e'));
     return;
   }
+  // A Firebase email link (?mode=…&oobCode=…) opened the app.
+  AuthActionLink.capture(Uri.base);
   runApp(const ProviderScope(child: FoodRushApp()));
 }
 

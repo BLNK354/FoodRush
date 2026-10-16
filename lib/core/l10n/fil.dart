@@ -227,4 +227,58 @@ const Map<String, String> fil = {
   'Mix upper and lower case': 'Paghaluin ang malaki at maliit na titik',
   'Add a number': 'Magdagdag ng numero',
   'Add a symbol like ! or #': 'Magdagdag ng simbolo gaya ng ! o #',
+
+  // ---- verification email status
+  'Sending a link to {email}…':
+      'Nagpapadala ng link sa {email}…',
+  'Sending…':
+      'Nagpapadala…',
+  'Sent at {time} from {sender}. Not in your inbox? Check Spam or Promotions.':
+      'Naipadala nang {time} mula sa {sender}. Wala sa inbox? Silipin ang Spam o Promotions.',
+
+  // ---- email links (expiry, counter, link page)
+  'This link has expired. Send a new one.':
+      'Nag-expire na ang link na ito. Magpadala ng bago.',
+  'Link expires in {time}':
+      'Mag-e-expire ang link sa {time}',
+  'Email limit reached. Try again after {time}.':
+      'Naabot na ang limit ng email. Subukan ulit pagkatapos ng {time}.',
+  'Emails sent this hour: {n} of {max}':
+      'Naipadalang email ngayong oras: {n} sa {max}',
+  'Checking your link…':
+      'Sinusuri ang link mo…',
+  'This link has expired':
+      'Nag-expire na ang link na ito',
+  'Links work for {m} minutes. Open FoodRush and send a new one.':
+      'Gumagana ang mga link nang {m} minuto. Buksan ang FoodRush at magpadala ng bago.',
+  'This link can’t be used':
+      'Hindi na magagamit ang link na ito',
+  'It was already used, or a newer email replaced it. Open FoodRush to continue.':
+      'Nagamit na ito, o may mas bagong email na pumalit. Buksan ang FoodRush para magpatuloy.',
+  'Email verified!':
+      'Na-verify na ang email!',
+  '{email} is confirmed. You can order now.':
+      'Kumpirmado na ang {email}. Puwede ka nang mag-order.',
+  'Choose a new password':
+      'Pumili ng bagong password',
+  'For {email}':
+      'Para sa {email}',
+  'Password changed':
+      'Napalitan na ang password',
+  'Sign in with your new password.':
+      'Mag-sign in gamit ang bago mong password.',
+  'Email change undone':
+      'Naibalik ang dating email',
+  'Your sign-in email is {email} again. Consider changing your password too.':
+      '{email} ulit ang email mo sa pag-sign in. Magandang palitan din ang password mo.',
+  'Something went wrong':
+      'May nangyaring mali',
+  'Get a new link':
+      'Kumuha ng bagong link',
+  'Continue to FoodRush':
+      'Tumuloy sa FoodRush',
+  'New password':
+      'Bagong password',
+  'Save new password':
+      'I-save ang bagong password',
 };
