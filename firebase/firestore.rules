@@ -384,12 +384,37 @@ service cloud.firestore {
           : docId == 'home'
             ? (d.keys().hasOnly(['heroTitle', 'heroSubtitle', 'updatedAt'])
                && str(d.heroTitle, 0, 60) && str(d.heroSubtitle, 0, 140))
+          : docId == 'branding'
+            ? validBranding(d)
           : true;
+      }
+      // The admin's look for the whole app (Content → Branding).
+      function brandImg(v, max) {
+        return v == null || (v is string && v.size() <= max
+          && v.matches('^data:image/(jpeg|png);base64,.*'));
+      }
+      function validBranding(d) {
+        return d.keys().hasOnly(['appName', 'tagline', 'primary', 'accent',
+            'logo', 'loginImage', 'heroImage', 'corner', 'font', 'effects3d',
+            'animatedBackground', 'defaultTheme', 'updatedAt'])
+          && str(d.appName, 1, 24)
+          && str(d.tagline, 0, 60)
+          && d.primary is string && d.primary.matches('^#[0-9A-F]{6}$')
+          && d.accent is string && d.accent.matches('^#[0-9A-F]{6}$')
+          && brandImg(d.get('logo', null), 150000)
+          && brandImg(d.get('loginImage', null), 300000)
+          && brandImg(d.get('heroImage', null), 300000)
+          && d.corner in ['rounded', 'soft', 'sharp']
+          && d.font in ['modern', 'classic']
+          && d.effects3d is bool
+          && d.animatedBackground is bool
+          && d.defaultTheme in ['system', 'light', 'dark'];
       }
       // The bootstrap marker is world-readable (it contains only a timestamp)
       // so the register screen can tell signed-out visitors whether the
       // first-account-admin window is still open.
-      allow read: if docId == 'app_bootstrapped' || signedIn();
+      // Branding is public too: the signed-out login screen wears it.
+      allow read: if docId in ['app_bootstrapped', 'branding'] || signedIn();
       // The bootstrap marker is created exactly once and is then immutable —
       // no rule allows its update/delete, so the admin-claim window can never
       // be reopened, even by an admin.

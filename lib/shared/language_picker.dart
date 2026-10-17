@@ -111,7 +111,7 @@ class _LanguageTile extends StatelessWidget {
                           key: const ValueKey('on'),
                           width: 26,
                           height: 26,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: FrGradients.brand,
                           ),

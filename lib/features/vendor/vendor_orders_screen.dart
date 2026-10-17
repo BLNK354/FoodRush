@@ -495,7 +495,7 @@ class _OrderCard extends ConsumerWidget {
                   ),
                   child: Text(
                     '#${order.queueNumber ?? '?'}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 16,
                         color: FrColors.primary),

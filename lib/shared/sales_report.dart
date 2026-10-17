@@ -181,7 +181,7 @@ class SimpleBarChart extends StatelessWidget {
                         child: FractionallySizedBox(
                           heightFactor: max == 0 ? 0 : v / max,
                           child: Container(
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: FrColors.primary,
                               borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(4)),

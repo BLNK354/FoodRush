@@ -128,7 +128,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           backgroundColor: FrColors.primary.withValues(alpha: 0.12),
           child: Text(
             p.fullName.isNotEmpty ? p.fullName[0].toUpperCase() : '?',
-            style: const TextStyle(
+            style: TextStyle(
               color: FrColors.primary,
               fontWeight: FontWeight.w800,
             ),

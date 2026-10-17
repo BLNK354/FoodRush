@@ -94,7 +94,7 @@ class _VendorPromotionsScreenState extends ConsumerState<VendorPromotionsScreen>
             ...platform.map((p) => Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
-                    leading: const Icon(Icons.card_giftcard,
+                    leading: Icon(Icons.card_giftcard,
                         color: FrColors.secondary),
                     title: Text(p.code,
                         style: const TextStyle(fontWeight: FontWeight.w800)),

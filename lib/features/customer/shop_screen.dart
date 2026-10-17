@@ -134,7 +134,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(FrRadius.lg),
-                borderSide: const BorderSide(
+                borderSide: BorderSide(
                   color: FrColors.primary,
                   width: 1.6,
                 ),
@@ -531,9 +531,19 @@ class ShopHero extends StatelessWidget {
             ],
           ],
         );
+        // The admin's hero photo (Content → Branding), blended over the
+        // brand-tinted gradient so the greeting stays readable.
+        final photo = brandImage(Brand.current.heroImage);
         return Container(
           decoration: BoxDecoration(
             gradient: FrGradients.hero,
+            image: photo == null
+                ? null
+                : DecorationImage(
+                    image: photo,
+                    fit: BoxFit.cover,
+                    opacity: FrColors.dark ? 0.38 : 0.45,
+                  ),
             borderRadius: BorderRadius.circular(FrRadius.xl + 6),
             border: Border.all(color: FrColors.hairline),
             boxShadow: FrShadows.soft,

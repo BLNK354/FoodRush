@@ -202,6 +202,37 @@ describe('verification email links (expiry + send counter)', () => {
     assertFails(setDoc(ref(db(null)), first())));
 });
 
+describe('branding (admin look editor)', () => {
+  const brand = (extra = {}) => ({
+    appName: 'FoodRush', tagline: '', primary: '#E23744', accent: '#FF8A00',
+    logo: null, loginImage: null, heroImage: null, corner: 'rounded',
+    font: 'modern', effects3d: true, animatedBackground: true,
+    defaultTheme: 'system', updatedAt: serverTimestamp(), ...extra,
+  });
+  const ref = (f) => doc(f, 'settings/branding');
+  test('an admin saves the look', () => assertSucceeds(setDoc(ref(admin()), brand())));
+  test('...with a logo photo', () =>
+    assertSucceeds(setDoc(ref(admin()), brand({ logo: 'data:image/jpeg;base64,AAAA' }))));
+  test('a student cannot change the look', () => assertFails(setDoc(ref(student()), brand())));
+  test('a stall owner cannot either', () => assertFails(setDoc(ref(owner()), brand())));
+  test('colours must be real hex colours', () =>
+    assertFails(setDoc(ref(admin()), brand({ primary: 'red' }))));
+  test('images must be photos, not links or scripts', () =>
+    assertFails(setDoc(ref(admin()), brand({ heroImage: 'https://evil.example/x.jpg' }))));
+  test('oversized images are refused', () =>
+    assertFails(setDoc(ref(admin()), brand({ logo: 'data:image/jpeg;base64,' + 'A'.repeat(160000) }))));
+  test('unknown fields are refused', () =>
+    assertFails(setDoc(ref(admin()), brand({ css: 'body{display:none}' }))));
+  test('only the known corner styles', () =>
+    assertFails(setDoc(ref(admin()), brand({ corner: 'blob' }))));
+  test('the signed-out login screen can read it', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(ref(ctx.firestore()), brand()));
+    await assertSucceeds(getDoc(ref(db(null))));
+  });
+  test('...but not other settings', () =>
+    assertFails(getDoc(doc(db(null), 'settings/home'))));
+});
+
 describe('account deletion', () => {
   test('a student deletes their own profile', () => assertSucceeds(deleteDoc(doc(student(), 'users/student1'))));
   test('...but not someone else\'s', () => assertFails(deleteDoc(doc(student(), 'users/student2'))));

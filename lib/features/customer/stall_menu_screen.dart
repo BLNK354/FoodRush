@@ -893,7 +893,7 @@ class _ProductCard extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: product.imageUrl != null
                         ? FrImage(product.imageUrl)
-                        : const Icon(Icons.fastfood, color: FrColors.secondary),
+                        : Icon(Icons.fastfood, color: FrColors.secondary),
                   ),
                 ],
               ),
@@ -903,7 +903,7 @@ class _ProductCard extends StatelessWidget {
               children: [
                 Text(
                   peso(product.price),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
                     color: FrColors.primary,
