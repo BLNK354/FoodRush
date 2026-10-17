@@ -71,6 +71,92 @@ class Announcement {
 }
 
 // ---------------------------------------------------------------------------
+// HomeContent (Firestore: settings/home) — admin-edited Shop hero copy.
+// Empty fields fall back to the built-in (translated) defaults.
+// ---------------------------------------------------------------------------
+class HomeContent {
+  final String heroTitle;
+  final String heroSubtitle;
+
+  const HomeContent({this.heroTitle = '', this.heroSubtitle = ''});
+
+  factory HomeContent.fromMap(Map<String, dynamic>? m) => HomeContent(
+        heroTitle: (m?['heroTitle'] ?? '') as String,
+        heroSubtitle: (m?['heroSubtitle'] ?? '') as String,
+      );
+}
+
+// ---------------------------------------------------------------------------
+// HomeBanner (Firestore: banners/{autoId}) — promo cards on the Shop page
+// ---------------------------------------------------------------------------
+class HomeBanner {
+  /// Background looks the admin can pick (keep in sync with firestore.rules).
+  static const styles = ['ember', 'sunset', 'night', 'mint'];
+
+  final String id; // empty = not saved yet
+  final String title;
+  final String? body;
+  final String? ctaLabel;
+
+  /// In-app route the button opens, e.g. /stall/abc or /orders.
+  final String? link;
+  final String? imageUrl;
+  final String style;
+  final bool active;
+  final int order;
+
+  const HomeBanner({
+    this.id = '',
+    required this.title,
+    this.body,
+    this.ctaLabel,
+    this.link,
+    this.imageUrl,
+    this.style = 'ember',
+    this.active = true,
+    this.order = 0,
+  });
+
+  factory HomeBanner.fromMap(String id, Map<String, dynamic> m) => HomeBanner(
+        id: id,
+        title: (m['title'] ?? '') as String,
+        body: m['body'] as String?,
+        ctaLabel: m['ctaLabel'] as String?,
+        link: m['link'] as String?,
+        imageUrl: m['imageUrl'] as String?,
+        style: styles.contains(m['style']) ? m['style'] as String : 'ember',
+        active: m['active'] == true,
+        order: ((m['order'] ?? 0) as num).toInt(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'title': title.trim(),
+        'body': _orNull(body),
+        'ctaLabel': _orNull(ctaLabel),
+        'link': _orNull(link),
+        'imageUrl': _orNull(imageUrl),
+        'style': style,
+        'active': active,
+        'order': order,
+      };
+
+  static String? _orNull(String? v) =>
+      v == null || v.trim().isEmpty ? null : v.trim();
+
+  HomeBanner copyWith({bool? active, int? order}) => HomeBanner(
+        id: id,
+        title: title,
+        body: body,
+        ctaLabel: ctaLabel,
+        link: link,
+        imageUrl: imageUrl,
+        style: style,
+        active: active ?? this.active,
+        order: order ?? this.order,
+      );
+}
+
+// ---------------------------------------------------------------------------
 // Promotion (Firestore: promotions/{autoId}; vendorId null = platform-wide)
 // ---------------------------------------------------------------------------
 class Promotion {

@@ -22,6 +22,11 @@ abstract final class Limits {
   static const review = 500;
   static const reply = 300;
   static const announcement = 280;
+  static const heroTitle = 60;
+  static const heroSubtitle = 140;
+  static const bannerTitle = 60;
+  static const bannerBody = 140;
+  static const bannerCta = 24;
   static const search = 100;
   static const promoCode = 20;
   static const addonName = 30;

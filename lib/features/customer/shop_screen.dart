@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/i18n.dart';
 import '../../core/theme.dart';
+import '../../models/misc.dart';
 import '../../models/user.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
 import '../../shared/validation.dart';
+import '../../shared/home_banners.dart';
 import '../../shared/install_app_card.dart';
 import '../../shared/premium.dart';
 import '../../shared/widgets.dart';
@@ -26,6 +28,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   List<Vendor> _filtered = [];
   Set<String> _favorites = {};
   String _query = '';
+  final _homeContent = Repository.instance.streamHomeContent();
 
   @override
   void initState() {
@@ -98,8 +101,17 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       title: tr('Shop'),
       showHeader: false,
       children: [
-        _ShopHero(firstName: first, openCount: openCount),
+        StreamBuilder<HomeContent>(
+          stream: _homeContent,
+          builder: (context, snap) => ShopHero(
+            firstName: first,
+            openCount: openCount,
+            title: snap.data?.heroTitle,
+            subtitle: snap.data?.heroSubtitle,
+          ),
+        ),
         const SizedBox(height: 20),
+        const HomeBannerCarousel(),
         const InstallAppCard(),
         DecoratedBox(
           decoration: BoxDecoration(
@@ -430,11 +442,21 @@ class _StallCard extends StatelessWidget {
   }
 }
 
-/// Warm greeting banner with the floating 3D food scene.
-class _ShopHero extends StatelessWidget {
+/// Warm greeting banner with the floating 3D food scene. [title] and
+/// [subtitle] come from the admin's Content page; blank keeps the defaults.
+/// Public so the Content page can preview it.
+class ShopHero extends StatelessWidget {
   final String firstName;
   final int openCount;
-  const _ShopHero({required this.firstName, required this.openCount});
+  final String? title;
+  final String? subtitle;
+  const ShopHero({
+    super.key,
+    required this.firstName,
+    required this.openCount,
+    this.title,
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -461,7 +483,9 @@ class _ShopHero extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              tr('Hungry? Skip the line.'),
+              (title ?? '').trim().isNotEmpty
+                  ? title!.trim()
+                  : tr('Hungry? Skip the line.'),
               style: TextStyle(
                 fontSize: wide ? 38 : 30,
                 height: 1.05,
@@ -472,7 +496,9 @@ class _ShopHero extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              tr('Stalls on campus — order ahead, pick up when it\'s ready.'),
+              (subtitle ?? '').trim().isNotEmpty
+                  ? subtitle!.trim()
+                  : tr('Stalls on campus — order ahead, pick up when it\'s ready.'),
               style: TextStyle(
                 color: FrColors.muted,
                 fontSize: 14,

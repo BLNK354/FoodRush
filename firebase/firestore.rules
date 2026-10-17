@@ -381,6 +381,9 @@ service cloud.firestore {
                && d.get('level', 'info') in ['info', 'warning'])
           : docId == 'platform_gcash'
             ? (str(d.number, 0, 20) && str(d.name, 0, 60))
+          : docId == 'home'
+            ? (d.keys().hasOnly(['heroTitle', 'heroSubtitle', 'updatedAt'])
+               && str(d.heroTitle, 0, 60) && str(d.heroSubtitle, 0, 140))
           : true;
       }
       // The bootstrap marker is world-readable (it contains only a timestamp)
@@ -395,6 +398,30 @@ service cloud.firestore {
       allow update: if isAdmin() && docId != 'app_bootstrapped'
         && validSetting(request.resource.data);
       allow delete: if isAdmin() && docId != 'app_bootstrapped';
+    }
+
+    // --------------------------------------------------------- banners -----
+    // Shop-page promo banners (admin CMS). Everyone signed in reads them;
+    // only admins write. Links must be in-app routes, never external URLs.
+    match /banners/{bannerId} {
+      function validBanner(d) {
+        return d.keys().hasOnly(['title', 'body', 'ctaLabel', 'link',
+            'imageUrl', 'style', 'active', 'order', 'updatedAt'])
+          && str(d.title, 1, 60)
+          && optStr(d.get('body', null), 140)
+          && optStr(d.get('ctaLabel', null), 24)
+          && (d.get('link', null) == null
+              || (d.link is string && d.link.matches('^/[A-Za-z0-9/_-]{0,80}$')))
+          && (d.get('imageUrl', null) == null
+              || (d.imageUrl is string && d.imageUrl.size() <= 300000
+                  && d.imageUrl.matches('^data:image/jpeg;base64,.*')))
+          && d.style in ['ember', 'sunset', 'night', 'mint']
+          && d.active is bool
+          && num(d.order, 0, 1000);
+      }
+      allow read: if signedIn();
+      allow create, update: if isAdmin() && validBanner(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------- counters -----
