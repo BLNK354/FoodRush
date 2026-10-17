@@ -358,6 +358,7 @@ const _adminDests = [
   SideDest('/admin/vendors', Icons.storefront_outlined, Icons.storefront, 'Stalls'),
   SideDest('/admin/orders', Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'),
   SideDest('/admin/promotions', Icons.local_offer_outlined, Icons.local_offer, 'Promos'),
+  SideDest('/admin/content', Icons.palette_outlined, Icons.palette, 'Content'),
   SideDest('/admin/reports', Icons.insights_outlined, Icons.insights, 'Reports'),
 ];
 

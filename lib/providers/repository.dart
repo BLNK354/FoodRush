@@ -980,6 +980,54 @@ class Repository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+  // =========================================================================
+  // CONTENT (settings/home + banners) — the admin's Shop page CMS
+  // =========================================================================
+
+  Stream<HomeContent> streamHomeContent() => _db
+      .collection(kColSettings)
+      .doc(kSettingsDocHome)
+      .snapshots()
+      .map((s) => HomeContent.fromMap(s.data()));
+
+  Future<void> setHomeContent({
+    required String heroTitle,
+    required String heroSubtitle,
+  }) =>
+      _db.collection(kColSettings).doc(kSettingsDocHome).set({
+        'heroTitle': heroTitle.trim(),
+        'heroSubtitle': heroSubtitle.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+  /// Every banner (live and hidden), in display order.
+  Stream<List<HomeBanner>> streamBanners() =>
+      _db.collection(kColBanners).snapshots().map((s) {
+        final list =
+            s.docs.map((d) => HomeBanner.fromMap(d.id, d.data())).toList();
+        list.sort((a, b) => a.order.compareTo(b.order));
+        return list;
+      });
+
+  /// Creates the banner when it has no id yet, otherwise replaces it.
+  Future<void> saveBanner(HomeBanner b) {
+    final data = {...b.toMap(), 'updatedAt': FieldValue.serverTimestamp()};
+    final col = _db.collection(kColBanners);
+    return b.id.isEmpty ? col.add(data) : col.doc(b.id).set(data);
+  }
+
+  Future<void> deleteBanner(String id) =>
+      _db.collection(kColBanners).doc(id).delete();
+
+  /// Rewrites `order` so banners show in the sequence of [ids].
+  Future<void> reorderBanners(List<String> ids) async {
+    final batch = _db.batch();
+    for (var i = 0; i < ids.length; i++) {
+      batch.update(_db.collection(kColBanners).doc(ids[i]), {'order': i});
+    }
+    await batch.commit();
+  }
+
   /// Account deletion (student): refuses while orders are still active;
   /// otherwise replaces their name on past orders/reviews with
   /// "Deleted user", deletes their favourites and profile. Returns a reason

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/admin/admin_content.dart';
 import '../features/admin/admin_dashboard.dart';
 import '../features/admin/admin_orders.dart';
 import '../features/admin/admin_promotions.dart';
@@ -226,6 +227,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/promotions',
             builder: (context, state) => const AdminPromotionsScreen(),
+          ),
+          GoRoute(
+            path: '/admin/content',
+            builder: (context, state) => const AdminContentScreen(),
           ),
           GoRoute(
             path: '/admin/reports',

@@ -142,6 +142,7 @@ const String kColFavorites = 'favorites';
 const String kColPromotions = 'promotions';
 const String kColSettings = 'settings';
 const String kColCounters = 'counters';
+const String kColBanners = 'banners';
 
 // ---------------------------------------------------------------------------
 // Misc
@@ -161,6 +162,7 @@ const String kDefaultPickupNote =
     'Claim at the stall counter. Show your queue number.';
 const String kSettingsDocPlatformGcash = 'platform_gcash';
 const String kSettingsDocAnnouncement = 'announcement';
+const String kSettingsDocHome = 'home';
 
 /// Minimum gap between two orders by the same student (enforced by rules).
 const Duration kOrderCooldown = Duration(seconds: 30);

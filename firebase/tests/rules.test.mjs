@@ -364,3 +364,37 @@ describe('announcements', () => {
     await assertSucceeds(getDoc(ann(student())));
   });
 });
+
+describe('content (shop CMS)', () => {
+  const home = (f) => doc(f, 'settings/home');
+  const banner = (f, id = 'b1') => doc(f, 'banners', id);
+  const b = (overrides = {}) => ({
+    title: 'Silog week', body: '20% off', ctaLabel: 'Order now', link: '/stall/v1',
+    imageUrl: null, style: 'ember', active: true, order: 0, ...overrides,
+  });
+  test('admins edit the hero', () =>
+    assertSucceeds(setDoc(home(admin()), { heroTitle: 'Hi', heroSubtitle: '', updatedAt: serverTimestamp() })));
+  test('...but not with a novel', () =>
+    assertFails(setDoc(home(admin()), { heroTitle: 'x'.repeat(61), heroSubtitle: '' })));
+  test('students cannot edit the hero', () =>
+    assertFails(setDoc(home(student()), { heroTitle: 'Hacked', heroSubtitle: '' })));
+  test('admins add a banner', () => assertSucceeds(setDoc(banner(admin()), b())));
+  test('students cannot add banners', () => assertFails(setDoc(banner(student()), b())));
+  test('stalls cannot add banners', () => assertFails(setDoc(banner(owner()), b())));
+  test('a banner cannot link off-site', () =>
+    assertFails(setDoc(banner(admin()), b({ link: 'https://evil.example' }))));
+  test('...nor carry a non-image data URL', () =>
+    assertFails(setDoc(banner(admin()), b({ imageUrl: 'data:text/html;base64,PHNjcmlwdD4=' }))));
+  test('...nor an unknown style', () => assertFails(setDoc(banner(admin()), b({ style: 'neon' }))));
+  test('...nor extra fields', () => assertFails(setDoc(banner(admin()), b({ isAdmin: true }))));
+  test('a banner needs a title', () => assertFails(setDoc(banner(admin()), b({ title: '' }))));
+  test('everyone signed in reads banners; admins reorder and delete', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(banner(ctx.firestore()), b()));
+    await assertSucceeds(getDocs(collection(student(), 'banners')));
+    await assertFails(getDocs(collection(db(null), 'banners')));
+    await assertFails(updateDoc(banner(student()), { order: 3 }));
+    await assertSucceeds(updateDoc(banner(admin()), { order: 3 }));
+    await assertFails(deleteDoc(banner(student())));
+    await assertSucceeds(deleteDoc(banner(admin())));
+  });
+});
