@@ -148,7 +148,7 @@ class _AuthActionScreenState extends ConsumerState<AuthActionScreen> {
         switch (_stage) {
       _Stage.working => (
           Icons.hourglass_top_rounded,
-          const [Color(0xFFFF7A59), FrColors.primary],
+          [Color(0xFFFF7A59), FrColors.primary],
           tr('Checking your link…'),
           '',
         ),
@@ -173,7 +173,7 @@ class _AuthActionScreenState extends ConsumerState<AuthActionScreen> {
         ),
       _Stage.resetForm => (
           Icons.lock_reset_rounded,
-          const [Color(0xFFFF7A59), FrColors.primary],
+          [Color(0xFFFF7A59), FrColors.primary],
           tr('Choose a new password'),
           tr('For {email}', {'email': _email ?? ''}),
         ),

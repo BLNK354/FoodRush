@@ -204,13 +204,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _compactBrand() => Column(
         children: [
           const FloatingFoodScene(height: 210),
-          GradientText('FoodRush',
+          GradientText(Brand.current.appName,
               style: const TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -1.4)),
           const SizedBox(height: 2),
-          Text(tr('{u} · order ahead, skip the line', {'u': kUniversityName}),
+          Text((Brand.current.tagline.isNotEmpty
+              ? Brand.current.tagline
+              : tr('{u} · order ahead, skip the line', {'u': kUniversityName})),
               style: TextStyle(
                   fontSize: 13.5,
                   color: FrColors.muted,
@@ -226,7 +228,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               const BrandMark(size: 48),
               const SizedBox(width: 14),
-              GradientText('FoodRush',
+              GradientText(Brand.current.appName,
                   style: const TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.w900,

@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image/image.dart' as img;
 
 import '../core/constants.dart';
+import '../models/branding.dart';
 import '../models/misc.dart';
 import '../models/order.dart';
 import '../models/product.dart';
@@ -999,6 +1000,19 @@ class Repository {
         'heroSubtitle': heroSubtitle.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+  /// The app's look (colours, logo, images, style). World-readable so the
+  /// signed-out login screen follows it too.
+  Stream<Branding> streamBranding() => _db
+      .collection(kColSettings)
+      .doc(kSettingsDocBranding)
+      .snapshots()
+      .map((s) => Branding.fromMap(s.data()));
+
+  Future<void> saveBranding(Branding b) => _db
+      .collection(kColSettings)
+      .doc(kSettingsDocBranding)
+      .set({...b.toMap(), 'updatedAt': FieldValue.serverTimestamp()});
 
   /// Every banner (live and hidden), in display order.
   Stream<List<HomeBanner>> streamBanners() =>

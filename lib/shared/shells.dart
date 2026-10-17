@@ -69,7 +69,7 @@ class CustomerShell extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
                       children: [
-                        GradientText('FoodRush',
+                        GradientText(Brand.current.appName,
                             style: const TextStyle(
                                 fontSize: 21,
                                 fontWeight: FontWeight.w900,
@@ -95,7 +95,7 @@ class CustomerShell extends ConsumerWidget {
                         width: 38,
                         height: 38,
                         alignment: Alignment.center,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: FrGradients.sunset,
                         ),

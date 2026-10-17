@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/branding.dart';
+
 /// FoodRush design tokens + Material 3 theme.
 abstract final class FrColors {
   /// Set by FoodRushApp from the resolved light/dark mode before it builds
@@ -7,9 +9,15 @@ abstract final class FrColors {
   /// colors below read it; brand colors are the same in both modes.
   static bool dark = false;
 
-  static const Color primary = Color(0xFFE23744); // foodpanda-esque red
-  static const Color primaryDark = Color(0xFFB02A34);
-  static const Color secondary = Color(0xFFFF8A00); // hungry orange
+  /// Brand colors come from the admin's Branding (see [Brand.apply]).
+  static Color primary = Branding.defaultPrimary;
+  static Color secondary = Branding.defaultAccent;
+  static Color get primaryDark => Color.lerp(primary, Colors.black, 0.22)!;
+
+  /// White text stays readable on [primary]; when a light brand colour
+  /// is picked, text on it switches to near-black.
+  static Color get onPrimary =>
+      primary.computeLuminance() > 0.5 ? const Color(0xFF1A1614) : Colors.white;
 
   // Neutrals. Dark steps are their own warm greys (not an inverted light
   // palette); muted text clears 4.5:1 on its own mode's background.
@@ -41,26 +49,43 @@ abstract final class FrColors {
 }
 
 abstract final class FrGradients {
-  /// Ember: the brand red warming into coral.
-  static const LinearGradient brand = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFFFF6B4A), FrColors.primary, Color(0xFFC81E4A)],
-    stops: [0, 0.55, 1],
-  );
+  /// The brand colour warming toward the accent (derived, so any brand
+  /// colour the admin picks gets a matching gradient).
+  static LinearGradient get brand => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color.lerp(FrColors.primary, FrColors.secondary, 0.4)!,
+          FrColors.primary,
+          Color.lerp(FrColors.primary, const Color(0xFF3A0020), 0.2)!,
+        ],
+        stops: const [0, 0.55, 1],
+      );
 
-  static const LinearGradient sunset = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFFFFB547), Color(0xFFFF6B4A), FrColors.primary],
-  );
+  static LinearGradient get sunset => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color.lerp(FrColors.secondary, Colors.white, 0.2)!,
+          Color.lerp(FrColors.secondary, FrColors.primary, 0.5)!,
+          FrColors.primary,
+        ],
+      );
 
   static LinearGradient get hero => LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: FrColors.dark
-            ? const [Color(0xFF3A1414), Color(0xFF2A1210), Color(0xFF1A1716)]
-            : const [Color(0xFFFFE8DE), Color(0xFFFFF1E6), Color(0xFFFFFAF5)],
+            ? [
+                Color.lerp(const Color(0xFF1A1716), FrColors.primary, 0.2)!,
+                Color.lerp(const Color(0xFF1A1716), FrColors.primary, 0.1)!,
+                const Color(0xFF1A1716),
+              ]
+            : [
+                Color.lerp(Colors.white, FrColors.primary, 0.12)!,
+                Color.lerp(Colors.white, FrColors.secondary, 0.09)!,
+                const Color(0xFFFFFAF5),
+              ],
       );
 }
 
@@ -97,10 +122,29 @@ abstract final class FrShadows {
 }
 
 abstract final class FrRadius {
-  static const double sm = 8;
-  static const double md = 14;
-  static const double lg = 18;
-  static const double xl = 24;
+  /// Set from the admin's corner style (rounded 1.0, soft 0.6, sharp 0.2).
+  static double scale = 1;
+  static double get sm => 8 * scale;
+  static double get md => 14 * scale;
+  static double get lg => 18 * scale;
+  static double get xl => 24 * scale;
+}
+
+/// The live [Branding]. FoodRushApp applies it before building and rebuilds
+/// every widget when it changes (like a light/dark switch).
+abstract final class Brand {
+  static Branding current = Branding.defaults;
+
+  static void apply(Branding b) {
+    current = b;
+    FrColors.primary = b.primary;
+    FrColors.secondary = b.accent;
+    FrRadius.scale = b.radiusScale;
+  }
+
+  /// Font family for the chosen style (null = the platform default).
+  static String? get fontFamily =>
+      current.font == 'classic' ? null : 'PlusJakartaSans';
 }
 
 abstract final class FrSpacing {
@@ -117,7 +161,7 @@ ThemeData buildFrTheme() {
     seedColor: FrColors.primary,
     brightness: FrColors.dark ? Brightness.dark : Brightness.light,
     primary: FrColors.primary,
-    onPrimary: Colors.white,
+    onPrimary: FrColors.onPrimary,
     secondary: FrColors.secondary,
     surface: FrColors.surface,
     onSurface: FrColors.ink,
@@ -129,13 +173,13 @@ ThemeData buildFrTheme() {
     brightness: colorScheme.brightness,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: FrColors.cream,
-    fontFamily: 'PlusJakartaSans',
+    fontFamily: Brand.fontFamily,
     splashFactory: InkSparkle.splashFactory,
   );
 
   // Plus Jakarta Sans (bundled): geometric, warm, reads premium at every
   // weight. Headlines get tight tracking.
-  const family = 'PlusJakartaSans';
+  final family = Brand.fontFamily;
   final text = base.textTheme
       .apply(
         fontFamily: family,
@@ -213,14 +257,14 @@ ThemeData buildFrTheme() {
       focusedErrorBorder: border(FrColors.danger, 1.6),
       hintStyle: TextStyle(color: FrColors.muted),
       labelStyle: TextStyle(color: FrColors.muted),
-      floatingLabelStyle: const TextStyle(
+      floatingLabelStyle: TextStyle(
           color: FrColors.primary, fontWeight: FontWeight.w700),
       prefixIconColor: FrColors.muted,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: FrColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: FrColors.onPrimary,
         minimumSize: const Size(48, 50),
         padding: const EdgeInsets.symmetric(horizontal: 24),
         elevation: 0,
@@ -294,7 +338,7 @@ ThemeData buildFrTheme() {
       backgroundColor: FrColors.surface,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(FrRadius.xl)),
       ),
     ),
@@ -316,7 +360,7 @@ ThemeData buildFrTheme() {
       indicatorShape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(FrRadius.md),
       ),
-      selectedIconTheme: const IconThemeData(color: FrColors.primary),
+      selectedIconTheme: IconThemeData(color: FrColors.primary),
       selectedLabelTextStyle: TextStyle(
         fontFamily: family,
         color: FrColors.primary,
@@ -334,7 +378,7 @@ ThemeData buildFrTheme() {
         side: BorderSide(color: FrColors.line),
       ),
     ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
+    progressIndicatorTheme: ProgressIndicatorThemeData(
       color: FrColors.primary,
     ),
     tabBarTheme: TabBarThemeData(

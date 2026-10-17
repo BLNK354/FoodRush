@@ -163,6 +163,7 @@ const String kDefaultPickupNote =
 const String kSettingsDocPlatformGcash = 'platform_gcash';
 const String kSettingsDocAnnouncement = 'announcement';
 const String kSettingsDocHome = 'home';
+const String kSettingsDocBranding = 'branding';
 
 /// Minimum gap between two orders by the same student (enforced by rules).
 const Duration kOrderCooldown = Duration(seconds: 30);

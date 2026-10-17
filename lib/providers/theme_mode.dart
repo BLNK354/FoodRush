@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/i18n.dart';
+import '../core/theme.dart';
 import '../shared/browser/browser.dart' as browser;
 
 /// Light / dark / follow-the-device, remembered per browser.
@@ -9,7 +10,9 @@ class ThemeModeController extends Notifier<ThemeMode> {
   static const _key = 'themeMode';
 
   @override
-  ThemeMode build() => switch (browser.readPref(_key)) {
+  ThemeMode build() =>
+      // No choice saved yet: the admin's default for new visitors.
+      switch (browser.readPref(_key) ?? Brand.current.defaultTheme) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
         _ => ThemeMode.system,

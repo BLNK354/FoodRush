@@ -60,7 +60,7 @@ class _InstallAppCardState extends State<InstallAppCard> {
         padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
         child: Row(
           children: [
-            const Icon(Icons.install_mobile, color: FrColors.primary),
+            Icon(Icons.install_mobile, color: FrColors.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(tr('Install FoodRush for one-tap ordering from your home screen.'),

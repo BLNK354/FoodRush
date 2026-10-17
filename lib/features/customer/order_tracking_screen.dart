@@ -472,7 +472,7 @@ class _GcashPanelState extends ConsumerState<_GcashPanel> {
                 ),
                 Text(
                   peso(widget.order.total),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     color: FrColors.primary,
@@ -788,7 +788,7 @@ class _TimelineRow extends StatelessWidget {
                 child: state == _StepState.done
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : state == _StepState.current
-                    ? const Icon(
+                    ? Icon(
                         Icons.circle,
                         size: 10,
                         color: FrColors.primary,

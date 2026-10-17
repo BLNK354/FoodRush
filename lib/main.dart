@@ -12,6 +12,7 @@ import 'core/i18n.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'providers/auth_controller.dart';
+import 'providers/branding_provider.dart';
 import 'providers/theme_mode.dart';
 import 'shared/browser/browser.dart' as browser;
 
@@ -83,6 +84,8 @@ Future<void> main() async {
   }
   // A Firebase email link (?mode=…&oobCode=…) opened the app.
   AuthActionLink.capture(Uri.base);
+  // Start in the last-seen branding (no flash of the stock look).
+  Brand.apply(BrandingController.cached());
   runApp(const ProviderScope(child: FoodRushApp()));
 }
 
@@ -104,7 +107,7 @@ class _StartupError extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.cloud_off, size: 48, color: FrColors.primary),
+                  Icon(Icons.cloud_off, size: 48, color: FrColors.primary),
                   const SizedBox(height: 16),
                   const Text('FoodRush can\'t start',
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
@@ -182,7 +185,12 @@ class _FoodRushAppState extends ConsumerState<FoodRushApp>
   Widget build(BuildContext context) {
     final dark = _resolveDark(ref.watch(themeModeProvider));
     final lang = ref.watch(languageProvider);
-    if (dark != FrColors.dark || lang != Lang.code) {
+    final brand = ref.watch(brandingProvider);
+    if (dark != FrColors.dark || lang != Lang.code || brand != Brand.current) {
+      if (brand != Brand.current) {
+        Brand.apply(brand);
+        _themes.clear(); // themes bake in the brand colours and font
+      }
       FrColors.dark = dark;
       Lang.current = languageFor(lang);
       _rebuildEverything();
@@ -197,7 +205,7 @@ class _FoodRushAppState extends ConsumerState<FoodRushApp>
     // in place of the router's pages while the cold-start profile loads; the
     // router itself stays mounted and keeps the deep-linked location.
     return MaterialApp.router(
-      title: kAppName,
+      title: brand.appName,
       debugShowCheckedModeBanner: false,
       theme: theme,
       // Switch instantly: lerping between the two themes runs the
