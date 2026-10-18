@@ -280,4 +280,20 @@ const Map<String, String> ceb = {
       'Bag-ong password',
   'Save new password':
       'I-save ang bag-ong password',
+
+  // ---- profile photo
+  'Profile photo':
+      'Litrato sa profile',
+  'Stalls see this photo when you order, so they can hand your food to the right person.':
+      'Makita sa stall kini nga litrato kung mo-order ka, aron mahatag nila ang pagkaon sa sakto nga tawo.',
+  'Add photo':
+      'Pagdugang og litrato',
+  'Change photo':
+      'Ilisan ang litrato',
+  'Remove photo':
+      'Tangtanga ang litrato',
+  'Photo updated.':
+      'Na-update ang litrato.',
+  'Photo removed.':
+      'Natangtang ang litrato.',
 };

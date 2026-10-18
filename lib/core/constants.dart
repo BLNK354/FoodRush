@@ -123,6 +123,7 @@ const String kPathPaymentProofs = 'payment-proofs';
 // Firestore collections
 // ---------------------------------------------------------------------------
 const String kColUsers = 'users';
+const String kColAvatars = 'avatars';
 const String kColVerifyLinks = 'verifyLinks';
 
 /// Verification email links stop working this long after they are sent

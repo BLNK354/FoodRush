@@ -258,4 +258,20 @@ const Map<String, String> ja = {
       '新しいパスワード',
   'Save new password':
       '新しいパスワードを保存',
+
+  // ---- profile photo
+  'Profile photo':
+      'プロフィール写真',
+  'Stalls see this photo when you order, so they can hand your food to the right person.':
+      '注文すると屋台にこの写真が表示され、正しい人に料理を渡せます。',
+  'Add photo':
+      '写真を追加',
+  'Change photo':
+      '写真を変更',
+  'Remove photo':
+      '写真を削除',
+  'Photo updated.':
+      '写真を更新しました。',
+  'Photo removed.':
+      '写真を削除しました。',
 };

@@ -13,8 +13,8 @@ class PrivacyScreen extends StatelessWidget {
   static const _sections = <(String, String)>[
     (
       'What we collect',
-      'Your name, email, and (if you add them) mobile number and student '
-          'number. For each order: the items, prices, pickup time, your note '
+      'Your name, email and student number, and (if you add them) your '
+          'mobile number and a profile photo. For each order: the items, prices, pickup time, your note '
           'to the stall, and GCash receipt photos you upload. Also your '
           'reviews and favourite stalls.',
     ),
@@ -27,8 +27,9 @@ class PrivacyScreen extends StatelessWidget {
     ),
     (
       'Who can see it',
-      'You. The stall you order from sees your name, your order, your note '
-          'and your receipt. FoodRush administrators can see accounts and '
+      'You. The stall you order from sees your name, your profile photo (if '
+          'you added one, so they hand your food to the right person), your '
+          'order, your note and your receipt. FoodRush administrators can see accounts and '
           'orders to keep the service running. Other students cannot see your '
           'orders or profile. Reviews show your first name and last initial.',
     ),
@@ -40,7 +41,8 @@ class PrivacyScreen extends StatelessWidget {
     ),
     (
       'How long',
-      'Until you delete your account. When you do, your profile, favourites '
+      'Until you delete your account (you can remove your photo any time in '
+          'My profile). When you do, your profile, photo, favourites '
           'and login are deleted, and your name is removed from past orders '
           'and reviews (the stall keeps the anonymous sales record).',
     ),

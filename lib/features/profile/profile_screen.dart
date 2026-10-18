@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,8 +9,10 @@ import '../../core/i18n.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_controller.dart';
+import '../../providers/repository.dart';
 import '../../providers/theme_mode.dart';
 import '../../shared/language_picker.dart';
+import '../../shared/user_avatar.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
@@ -133,6 +138,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _PhotoCard(uid: profile.id, name: profile.fullName),
+                  const SizedBox(height: 20),
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
@@ -371,6 +378,139 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
           child: const Text('Delete forever'),
         ),
       ],
+    );
+  }
+}
+
+/// The person's own photo: upload (centre-cropped square), change, remove.
+/// Stalls see it on orders so they hand food to the right person.
+class _PhotoCard extends StatefulWidget {
+  final String uid;
+  final String name;
+  const _PhotoCard({required this.uid, required this.name});
+
+  @override
+  State<_PhotoCard> createState() => _PhotoCardState();
+}
+
+class _PhotoCardState extends State<_PhotoCard> {
+  bool _busy = false;
+  late final Stream<String?> _photo =
+      Repository.instance.streamAvatar(widget.uid);
+
+  Future<void> _pick() async {
+    final picked = await FilePicker.platform
+        .pickFiles(type: FileType.image, withData: true);
+    final Uint8List? bytes = picked?.files.single.bytes;
+    if (bytes == null) return;
+    setState(() => _busy = true);
+    try {
+      final url = await Repository.instance.makeAvatar(bytes);
+      await Repository.instance.setMyAvatar(url);
+      if (mounted) showSnack(context, tr('Photo updated.'));
+    } catch (e) {
+      if (mounted) showSnack(context, '$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _remove() async {
+    setState(() => _busy = true);
+    try {
+      await Repository.instance.setMyAvatar(null);
+      if (mounted) showSnack(context, tr('Photo removed.'));
+    } catch (e) {
+      if (mounted) showSnack(context, '$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: StreamBuilder<String?>(
+          stream: _photo,
+          builder: (context, snap) {
+            final hasPhoto = snap.data != null;
+            return Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    UserAvatar(uid: widget.uid, name: widget.name, size: 92),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Material(
+                        color: FrColors.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _busy ? null : _pick,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: _busy
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: FrColors.onPrimary))
+                                : Icon(Icons.photo_camera_rounded,
+                                    size: 16, color: FrColors.onPrimary),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('Profile photo'),
+                          style: const TextStyle(
+                              fontSize: 17, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Text(
+                        tr('Stalls see this photo when you order, so they can hand your food to the right person.'),
+                        style: TextStyle(
+                            color: FrColors.muted, fontSize: 12.5, height: 1.4),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _pick,
+                            icon: const Icon(Icons.upload_rounded, size: 18),
+                            label: Text(hasPhoto
+                                ? tr('Change photo')
+                                : tr('Add photo')),
+                          ),
+                          if (hasPhoto)
+                            TextButton.icon(
+                              onPressed: _busy ? null : _remove,
+                              icon: const Icon(Icons.delete_outline_rounded,
+                                  size: 18),
+                              label: Text(tr('Remove photo')),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }

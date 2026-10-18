@@ -258,4 +258,20 @@ const Map<String, String> ko = {
       '새 비밀번호',
   'Save new password':
       '새 비밀번호 저장',
+
+  // ---- profile photo
+  'Profile photo':
+      '프로필 사진',
+  'Stalls see this photo when you order, so they can hand your food to the right person.':
+      '주문하면 매장에서 이 사진을 보고 음식을 정확한 사람에게 전달해요.',
+  'Add photo':
+      '사진 추가',
+  'Change photo':
+      '사진 변경',
+  'Remove photo':
+      '사진 삭제',
+  'Photo updated.':
+      '사진을 업데이트했어요.',
+  'Photo removed.':
+      '사진을 삭제했어요.',
 };
