@@ -156,7 +156,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
           clipBehavior: Clip.antiAlias,
           child: p.imageUrl != null
               ? FrImage(p.imageUrl)
-              : const Icon(Icons.fastfood, color: FrColors.secondary),
+              : Icon(Icons.fastfood, color: FrColors.secondary),
         ),
         title: Text(p.name,
             style: const TextStyle(fontWeight: FontWeight.w700)),

@@ -231,7 +231,7 @@ class _OrderCard extends ConsumerWidget {
                           fontWeight: FontWeight.w900, fontSize: 16)),
                   if (order.queueNumber != null && order.isActive)
                     Text(tr('Queue #{n}', {'n': order.queueNumber}),
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: FrColors.primary,
                             fontWeight: FontWeight.w700,
                             fontSize: 12)),
@@ -249,7 +249,7 @@ class _OrderCard extends ConsumerWidget {
               if (!order.isActive)
                 IconButton(
                   tooltip: tr('Order again'),
-                  icon: const Icon(Icons.replay, color: FrColors.primary),
+                  icon: Icon(Icons.replay, color: FrColors.primary),
                   onPressed: () => reorder(context, ref, order),
                 ),
             ],

@@ -12,22 +12,53 @@ import '../../shared/home_banners.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 import '../customer/shop_screen.dart' show ShopHero;
+import 'admin_branding.dart';
 
 /// Admin CMS: what students see at the top of the Shop page — the hero
 /// headline and a carousel of promo banners. Changes go live instantly.
-class AdminContentScreen extends StatelessWidget {
+class AdminContentScreen extends StatefulWidget {
   const AdminContentScreen({super.key});
 
   @override
+  State<AdminContentScreen> createState() => _AdminContentScreenState();
+}
+
+class _AdminContentScreenState extends State<AdminContentScreen> {
+  String _tab = 'branding';
+
+  @override
   Widget build(BuildContext context) {
-    return const FrPage(
+    return FrPage(
       title: 'Content',
-      subtitle: 'Design what students see on the Shop page.',
+      subtitle: 'Design the whole app and what students see on the Shop page.',
       children: [
-        _HeroEditor(),
-        SizedBox(height: 20),
-        _BannersEditor(),
-        SizedBox(height: 40),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(
+                  value: 'branding',
+                  icon: Icon(Icons.palette_outlined),
+                  label: Text('Branding')),
+              ButtonSegment(
+                  value: 'shop',
+                  icon: Icon(Icons.storefront_outlined),
+                  label: Text('Shop page')),
+            ],
+            selected: {_tab},
+            onSelectionChanged: (s) => setState(() => _tab = s.first),
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (_tab == 'branding')
+          const BrandingEditor()
+        else ...const [
+          _HeroEditor(),
+          SizedBox(height: 20),
+          _BannersEditor(),
+        ],
+        const SizedBox(height: 40),
       ],
     );
   }

@@ -406,7 +406,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       const BrandMark(size: 60),
       const SizedBox(height: 14),
       GradientText(
-        'FoodRush',
+        Brand.current.appName,
         style: const TextStyle(
           fontSize: 30,
           fontWeight: FontWeight.w900,
@@ -414,7 +414,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
       ),
       Text(
-        tr('{u} · order ahead, skip the line', {'u': kUniversityName}),
+        (Brand.current.tagline.isNotEmpty
+              ? Brand.current.tagline
+              : tr('{u} · order ahead, skip the line', {'u': kUniversityName})),
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 13.5,

@@ -189,7 +189,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.storefront,
                       size: 18,
                       color: FrColors.primary,

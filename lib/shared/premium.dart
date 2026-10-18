@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -13,6 +14,16 @@ import '../core/theme.dart';
 bool reduceMotion(BuildContext context) =>
     MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
+final _brandImages = <String, ImageProvider>{};
+
+/// A Branding image (data URL) as an ImageProvider, decoded once.
+ImageProvider? brandImage(String? dataUrl) {
+  if (dataUrl == null || !dataUrl.startsWith('data:image/')) return null;
+  if (_brandImages.length > 8) _brandImages.clear();
+  return _brandImages.putIfAbsent(
+      dataUrl, () => MemoryImage(base64Decode(dataUrl.split(',').last)));
+}
+
 // ---------------------------------------------------------------------------
 // Surfaces
 // ---------------------------------------------------------------------------
@@ -21,7 +32,7 @@ bool reduceMotion(BuildContext context) =>
 class PremiumCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
-  final double radius;
+  final double? radius; // null = FrRadius.xl
   final Gradient? gradient;
   final Color? color;
   final bool raised;
@@ -30,7 +41,7 @@ class PremiumCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.radius = FrRadius.xl,
+    this.radius,
     this.gradient,
     this.color,
     this.raised = false,
@@ -38,6 +49,7 @@ class PremiumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = this.radius ?? FrRadius.xl;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: gradient == null ? (color ?? FrColors.surface) : null,
@@ -120,10 +132,35 @@ class _AuroraBackgroundState extends State<AuroraBackground>
   @override
   Widget build(BuildContext context) {
     final k = widget.intensity * (FrColors.dark ? 0.55 : 1.0);
+    final animate =
+        Brand.current.animatedBackground && !reduceMotion(context);
+    if (!animate) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat();
+    }
+    final photo = brandImage(Brand.current.loginImage);
     return Stack(
       fit: StackFit.expand,
       children: [
         ColoredBox(color: FrColors.cream),
+        if (photo != null) ...[
+          Image(image: photo, fit: BoxFit.cover, gaplessPlayback: true),
+          // Fade the photo into the page so cards stay readable.
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  FrColors.cream.withValues(alpha: 0.35),
+                  FrColors.cream.withValues(alpha: 0.75),
+                  FrColors.cream.withValues(alpha: 0.92),
+                ],
+              ),
+            ),
+          ),
+        ],
         AnimatedBuilder(
           animation: _c,
           builder: (context, _) {
@@ -191,19 +228,21 @@ class _AuroraPainter extends CustomPainter {
 class ClayOrb extends StatelessWidget {
   final IconData icon;
   final double size;
-  final List<Color> colors;
+  final List<Color>? colors; // null = brand colours
   final double shadowLift;
 
   const ClayOrb({
     super.key,
     required this.icon,
     this.size = 72,
-    this.colors = const [Color(0xFFFF7A59), FrColors.primary],
+    this.colors,
     this.shadowLift = 0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = this.colors ??
+        [Color.lerp(FrColors.primary, FrColors.secondary, 0.45)!, FrColors.primary];
     return SizedBox(
       width: size,
       height: size * 1.22,
@@ -307,16 +346,17 @@ class _OrbSpec {
   const _OrbSpec(this.icon, this.at, this.size, this.colors, this.phase, this.depth);
 }
 
-const _orbs = [
-  _OrbSpec(Icons.lunch_dining, Alignment(0, -0.1), 1.0,
-      [Color(0xFFFF7A59), FrColors.primary], 0, 1.0),
-  _OrbSpec(Icons.local_cafe, Alignment(-0.82, -0.62), 0.58,
+// The centre orb wears the brand colours; the rest keep their food tones.
+List<_OrbSpec> get _orbs => [
+  _OrbSpec(Icons.lunch_dining, const Alignment(0, -0.1), 1.0,
+      [Color.lerp(FrColors.primary, FrColors.secondary, 0.45)!, FrColors.primary], 0, 1.0),
+  const _OrbSpec(Icons.local_cafe, Alignment(-0.82, -0.62), 0.58,
       [Color(0xFFFFB547), Color(0xFFE07A00)], 1.3, 0.6),
-  _OrbSpec(Icons.ramen_dining, Alignment(0.85, -0.5), 0.66,
+  const _OrbSpec(Icons.ramen_dining, Alignment(0.85, -0.5), 0.66,
       [Color(0xFFFF9B6A), Color(0xFFE5484D)], 2.4, 0.7),
-  _OrbSpec(Icons.icecream, Alignment(-0.7, 0.72), 0.5,
+  const _OrbSpec(Icons.icecream, Alignment(-0.7, 0.72), 0.5,
       [Color(0xFFFF8FB1), Color(0xFFD6336C)], 3.6, 0.5),
-  _OrbSpec(Icons.local_pizza, Alignment(0.72, 0.68), 0.54,
+  const _OrbSpec(Icons.local_pizza, Alignment(0.72, 0.68), 0.54,
       [Color(0xFFFFD166), Color(0xFFF08C00)], 4.7, 0.55),
 ];
 
@@ -344,6 +384,8 @@ class _FloatingFoodSceneState extends State<FloatingFoodScene>
 
   @override
   Widget build(BuildContext context) {
+    // The admin can switch the 3D food off (Content → Branding).
+    if (!Brand.current.effects3d) return const SizedBox.shrink();
     return SizedBox(
       height: widget.height,
       child: LayoutBuilder(builder: (context, box) {
@@ -408,14 +450,14 @@ class TiltCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double maxTilt;
-  final double radius;
+  final double? radius; // null = FrRadius.xl
 
   const TiltCard({
     super.key,
     required this.child,
     this.onTap,
     this.maxTilt = 0.12,
-    this.radius = FrRadius.xl,
+    this.radius,
   });
 
   @override
@@ -474,7 +516,7 @@ class _TiltCardState extends State<TiltCard> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(widget.radius),
+                    borderRadius: BorderRadius.circular(widget.radius ?? FrRadius.xl),
                     boxShadow: _hover && !still
                         ? FrShadows.raised
                         : FrShadows.soft,
@@ -485,11 +527,11 @@ class _TiltCardState extends State<TiltCard> {
               child: child,
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(widget.radius),
+              borderRadius: BorderRadius.circular(widget.radius ?? FrRadius.xl),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: FrColors.surface,
-                  borderRadius: BorderRadius.circular(widget.radius),
+                  borderRadius: BorderRadius.circular(widget.radius ?? FrRadius.xl),
                   border: Border.all(color: FrColors.hairline),
                 ),
                 child: widget.child,
@@ -553,11 +595,11 @@ class _BrandMarkState extends State<BrandMark>
         height: s,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(s * 0.3),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFFF7A59), FrColors.primary, Color(0xFFB0213A)],
-          ),
+          gradient: FrGradients.brand,
+          image: brandImage(Brand.current.logo) == null
+              ? null
+              : DecorationImage(
+                  image: brandImage(Brand.current.logo)!, fit: BoxFit.cover),
           boxShadow: [
             BoxShadow(
               color: FrColors.primary.withValues(alpha: 0.45),
@@ -584,6 +626,7 @@ class _BrandMarkState extends State<BrandMark>
                 ),
               ),
             ),
+            if (Brand.current.logo == null)
             Center(
               child: Icon(Icons.lunch_dining,
                   color: Colors.white,
@@ -701,25 +744,25 @@ class _GradientButtonState extends State<GradientButton> {
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null && !widget.busy;
     final content = widget.busy
-        ? const SizedBox(
+        ? SizedBox(
             width: 22,
             height: 22,
             child: CircularProgressIndicator(
-                strokeWidth: 2.4, color: Colors.white),
+                strokeWidth: 2.4, color: FrColors.onPrimary),
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.icon != null) ...[
-                Icon(widget.icon, color: Colors.white, size: 20),
+                Icon(widget.icon, color: FrColors.onPrimary, size: 20),
                 const SizedBox(width: 8),
               ],
               Flexible(
                 child: Text(
                   widget.label,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: FrColors.onPrimary,
                     fontWeight: FontWeight.w800,
                     fontSize: 15.5,
                     letterSpacing: 0.1,
@@ -782,14 +825,14 @@ class _GradientButtonState extends State<GradientButton> {
                       height: widget.height / 2,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.vertical(
+                          borderRadius: BorderRadius.vertical(
                               top: Radius.circular(FrRadius.lg)),
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.white.withValues(alpha: 0.18),
-                              Colors.white.withValues(alpha: 0),
+                              FrColors.onPrimary.withValues(alpha: 0.18),
+                              FrColors.onPrimary.withValues(alpha: 0),
                             ],
                           ),
                         ),
@@ -814,15 +857,15 @@ class _GradientButtonState extends State<GradientButton> {
 class GradientText extends StatelessWidget {
   final String text;
   final TextStyle style;
-  final Gradient gradient;
+  final Gradient? gradient; // null = brand gradient
   const GradientText(this.text,
-      {super.key, required this.style, this.gradient = FrGradients.brand});
+      {super.key, required this.style, this.gradient});
 
   @override
   Widget build(BuildContext context) {
     return ShaderMask(
       blendMode: BlendMode.srcIn,
-      shaderCallback: (r) => gradient.createShader(r),
+      shaderCallback: (r) => (gradient ?? FrGradients.brand).createShader(r),
       child: Text(text, style: style),
     );
   }

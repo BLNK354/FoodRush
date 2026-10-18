@@ -222,7 +222,7 @@ class _VendorReportsScreenState extends ConsumerState<VendorReportsScreen> {
                         backgroundColor:
                             FrColors.primary.withValues(alpha: 0.1),
                         child: Text('${i + 1}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 color: FrColors.primary)),
