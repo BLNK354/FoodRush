@@ -30,3 +30,7 @@ node_modules/
 firebase/tests/*-debug.log
 firebase-debug.log
 *-debug.log
+
+# Tool crash logs (may include local paths)
+flutter_*.log
+hs_err_pid*.log
