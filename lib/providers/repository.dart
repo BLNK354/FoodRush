@@ -55,6 +55,56 @@ class Repository {
   }
 
   // =========================================================================
+  // PROFILE PHOTOS (avatars/{uid}) — optional; seen by the person, the
+  // stalls they order from (owners/staff) and admins. Never by students.
+  // =========================================================================
+
+  /// Centre-crops [bytes] to a small square JPEG data URL for an avatar.
+  Future<String> makeAvatar(Uint8List bytes) async {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) throw Exception('Unsupported image file.');
+    final square = img.copyResizeCropSquare(decoded,
+        size: 320, interpolation: img.Interpolation.average);
+    for (final q in [82, 70, 58]) {
+      final url =
+          'data:image/jpeg;base64,${base64Encode(img.encodeJpg(square, quality: q))}';
+      if (url.length <= 95000) return url;
+    }
+    throw Exception('That photo is too detailed. Try another one.');
+  }
+
+  Future<void> setMyAvatar(String? dataUrl) {
+    final ref = _db.collection(kColAvatars).doc(_uid);
+    return dataUrl == null
+        ? ref.delete()
+        : ref.set({'photo': dataUrl, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  /// Admin moderation: removes someone's photo.
+  Future<void> removeAvatar(String uid) =>
+      _db.collection(kColAvatars).doc(uid).delete();
+
+  final Map<String, Stream<String?>> _avatarStreams = {};
+  final Map<String, String?> _avatarLatest = {};
+
+  /// A user's photo (null = none), shared between every widget showing it.
+  /// One Firestore listener per user; a widget that subscribes later gets
+  /// the latest photo immediately (a plain broadcast stream would only
+  /// give it future changes).
+  Stream<String?> streamAvatar(String uid) async* {
+    if (_avatarLatest.containsKey(uid)) yield _avatarLatest[uid];
+    yield* _avatarStreams.putIfAbsent(
+        uid,
+        () => _db
+            .collection(kColAvatars)
+            .doc(uid)
+            .snapshots()
+            .map((s) => _avatarLatest[uid] = s.data()?['photo'] as String?)
+            .handleError((Object _) {})
+            .asBroadcastStream());
+  }
+
+  // =========================================================================
   // USERS (admin)
   // =========================================================================
 
@@ -1080,6 +1130,9 @@ class Repository {
       }
       await batch.commit();
     }
+    try {
+      await _db.collection(kColAvatars).doc(uid).delete();
+    } catch (_) {}
     await _db.collection(kColUsers).doc(uid).delete();
     return null;
   }

@@ -258,4 +258,20 @@ const Map<String, String> zh = {
       '新密码',
   'Save new password':
       '保存新密码',
+
+  // ---- profile photo
+  'Profile photo':
+      '头像',
+  'Stalls see this photo when you order, so they can hand your food to the right person.':
+      '下单时摊位会看到这张照片，方便把餐交给正确的人。',
+  'Add photo':
+      '添加照片',
+  'Change photo':
+      '更换照片',
+  'Remove photo':
+      '移除照片',
+  'Photo updated.':
+      '照片已更新。',
+  'Photo removed.':
+      '照片已移除。',
 };

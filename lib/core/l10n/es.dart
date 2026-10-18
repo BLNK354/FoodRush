@@ -279,4 +279,20 @@ const Map<String, String> es = {
       'Nueva contraseña',
   'Save new password':
       'Guardar nueva contraseña',
+
+  // ---- profile photo
+  'Profile photo':
+      'Foto de perfil',
+  'Stalls see this photo when you order, so they can hand your food to the right person.':
+      'Los puestos ven esta foto cuando pides, para entregar tu comida a la persona correcta.',
+  'Add photo':
+      'Añadir foto',
+  'Change photo':
+      'Cambiar foto',
+  'Remove photo':
+      'Quitar foto',
+  'Photo updated.':
+      'Foto actualizada.',
+  'Photo removed.':
+      'Foto eliminada.',
 };

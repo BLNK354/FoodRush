@@ -233,6 +233,49 @@ describe('branding (admin look editor)', () => {
     assertFails(getDoc(doc(db(null), 'settings/home'))));
 });
 
+describe('profile photos', () => {
+  const pic = (extra = {}) => ({ photo: 'data:image/jpeg;base64,AAAA', updatedAt: serverTimestamp(), ...extra });
+  const seed = () => env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'avatars/student1'), { photo: 'data:image/jpeg;base64,AAAA' }));
+  test('a student sets their own photo', () =>
+    assertSucceeds(setDoc(doc(student(), 'avatars/student1'), pic())));
+  test("...but not someone else's", () =>
+    assertFails(setDoc(doc(student(), 'avatars/student2'), pic())));
+  test('only JPEG photos, not links', () =>
+    assertFails(setDoc(doc(student(), 'avatars/student1'), pic({ photo: 'https://evil.example/a.jpg' }))));
+  test('oversized photos are refused', () =>
+    assertFails(setDoc(doc(student(), 'avatars/student1'),
+      pic({ photo: 'data:image/jpeg;base64,' + 'A'.repeat(100001) }))));
+  test('a stall owner sees a customer photo', async () => {
+    await seed();
+    await assertSucceeds(getDoc(doc(owner(), 'avatars/student1')));
+  });
+  test('an admin sees it too', async () => {
+    await seed();
+    await assertSucceeds(getDoc(doc(admin(), 'avatars/student1')));
+  });
+  test('other students cannot see it', async () => {
+    await seed();
+    await assertFails(getDoc(doc(db('student2'), 'avatars/student1')));
+  });
+  test('signed-out visitors cannot see it', async () => {
+    await seed();
+    await assertFails(getDoc(doc(db(null), 'avatars/student1')));
+  });
+  test('a student removes their own photo', async () => {
+    await seed();
+    await assertSucceeds(deleteDoc(doc(student(), 'avatars/student1')));
+  });
+  test('an admin can remove an inappropriate photo', async () => {
+    await seed();
+    await assertSucceeds(deleteDoc(doc(admin(), 'avatars/student1')));
+  });
+  test('a stall owner cannot remove it', async () => {
+    await seed();
+    await assertFails(deleteDoc(doc(owner(), 'avatars/student1')));
+  });
+});
+
 describe('account deletion', () => {
   test('a student deletes their own profile', () => assertSucceeds(deleteDoc(doc(student(), 'users/student1'))));
   test('...but not someone else\'s', () => assertFails(deleteDoc(doc(student(), 'users/student2'))));

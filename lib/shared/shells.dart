@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../providers/auth_controller.dart';
 import '../providers/cart_provider.dart';
 import 'premium.dart';
+import 'user_avatar.dart';
 import 'responsive.dart';
 
 // ---------------------------------------------------------------------------
@@ -91,19 +92,10 @@ class CustomerShell extends ConsumerWidget {
                     child: InkWell(
                       customBorder: const CircleBorder(),
                       onTap: () => context.go('/profile'),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: FrGradients.sunset,
-                        ),
-                        child: Text(initial,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900)),
-                      ),
+                      child: UserAvatar(
+                          uid: auth.profile?.id,
+                          name: auth.profile?.fullName ?? initial,
+                          size: 38),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -401,7 +393,11 @@ class StaffShell extends ConsumerWidget {
           actions: [
             IconButton(
               tooltip: tr('My profile'),
-              icon: const Icon(Icons.account_circle_outlined),
+              icon: UserAvatar(
+                  uid: ref.watch(authControllerProvider).profile?.id,
+                  name: ref.watch(authControllerProvider).profile?.fullName ??
+                      title,
+                  size: 30),
               onPressed: () => context.go('/profile'),
             ),
             IconButton(
@@ -478,12 +474,16 @@ class StaffShell extends ConsumerWidget {
             onDestinationSelected: (i) => context.go(dests[i].path),
             leading: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: CircleAvatar(
-                backgroundColor: FrColors.primary,
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w800),
+              child: Tooltip(
+                message: tr('My profile'),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => context.go('/profile'),
+                  child: UserAvatar(
+                      uid: ref.watch(authControllerProvider).profile?.id,
+                      name: ref.watch(authControllerProvider).profile?.fullName ??
+                          title,
+                      size: 42),
                 ),
               ),
             ),

@@ -482,6 +482,22 @@ service cloud.firestore {
                 && num(request.resource.data.active, 0, 100000)));
     }
 
+    // ---------------------------------------------------- profile photos ----
+    // avatars/{uid}: an optional face photo. Seen by its owner, by stall
+    // owners/staff (to hand food to the right person) and admins, never
+    // by other students. Owners set/remove it; admins can remove it.
+    match /avatars/{uid} {
+      allow read: if signedIn()
+        && (uid == me() || myRole() in ['vendor', 'staff', 'admin']);
+      allow create, update: if signedIn() && uid == me()
+        && request.resource.data.keys().hasOnly(['photo', 'updatedAt'])
+        && request.resource.data.photo is string
+        && request.resource.data.photo.size() <= 100000
+        && request.resource.data.photo.matches('^data:image/jpeg;base64,.*');
+      allow delete: if (request.auth != null && uid == request.auth.uid)
+        || isAdmin();
+    }
+
     // ------------------------------------------------- verification links ----
     // One doc per email (id = sha256 of the lowercased address) recording
     // when the latest verification email was sent and how many went out this

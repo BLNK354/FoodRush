@@ -281,4 +281,20 @@ const Map<String, String> fil = {
       'Bagong password',
   'Save new password':
       'I-save ang bagong password',
+
+  // ---- profile photo
+  'Profile photo':
+      'Larawan sa profile',
+  'Stalls see this photo when you order, so they can hand your food to the right person.':
+      'Makikita ng stall ang larawang ito kapag umorder ka, para maibigay nila ang pagkain sa tamang tao.',
+  'Add photo':
+      'Magdagdag ng larawan',
+  'Change photo':
+      'Palitan ang larawan',
+  'Remove photo':
+      'Alisin ang larawan',
+  'Photo updated.':
+      'Na-update ang larawan.',
+  'Photo removed.':
+      'Naalis ang larawan.',
 };

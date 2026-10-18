@@ -9,6 +9,7 @@ import '../../models/order.dart';
 import '../../models/product.dart';
 import '../../models/user.dart';
 import '../../providers/repository.dart';
+import '../../shared/user_avatar.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
@@ -501,7 +502,15 @@ class _OrderCard extends ConsumerWidget {
                         color: FrColors.primary),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
+                // Tap to enlarge: match the face at the counter.
+                UserAvatar(
+                  uid: order.customerId,
+                  name: order.customerName ?? '?',
+                  size: 44,
+                  enlarge: true,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

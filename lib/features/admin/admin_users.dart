@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/user.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/repository.dart';
+import '../../shared/user_avatar.dart';
 import '../../shared/validation.dart';
 import '../../shared/widgets.dart';
 
@@ -124,16 +125,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         onTap: () => _edit(p),
-        leading: CircleAvatar(
-          backgroundColor: FrColors.primary.withValues(alpha: 0.12),
-          child: Text(
-            p.fullName.isNotEmpty ? p.fullName[0].toUpperCase() : '?',
-            style: TextStyle(
-              color: FrColors.primary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
+        leading: UserAvatar(uid: p.id, name: p.fullName, size: 42, enlarge: true),
         title: Text(
           p.fullName.isEmpty ? '(no name)' : p.fullName,
           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -346,6 +338,31 @@ class _EditUserDialogState extends State<_EditUserDialog> {
         ),
       ),
       actions: [
+        TextButton.icon(
+          onPressed: _saving
+              ? null
+              : () async {
+                  final ok = await confirmDialog(
+                    context,
+                    title: 'Remove this profile photo?',
+                    message: 'Use this for inappropriate photos. '
+                        'They can upload a new one.',
+                    confirmLabel: 'Remove photo',
+                    destructive: true,
+                  );
+                  if (!ok) return;
+                  try {
+                    await Repository.instance.removeAvatar(widget.profile.id);
+                    if (context.mounted) showSnack(context, 'Photo removed.');
+                  } catch (e) {
+                    if (context.mounted) {
+                      showSnack(context, 'Could not remove: $e', error: true);
+                    }
+                  }
+                },
+          icon: const Icon(Icons.no_photography_outlined, size: 18),
+          label: const Text('Remove photo'),
+        ),
         TextButton(
           onPressed: _saving ? null : () => Navigator.pop(context),
           child: const Text('Cancel'),
